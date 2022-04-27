@@ -990,14 +990,14 @@ bool Processor::StepToGuestAddress(uint32_t thread_id, uint32_t pc) {
                uint64_t host_address) { fence.Signal(); });
   bp.Resume();
 
-  // HACK
-  auto thread_info = QueryThreadDebugInfo(thread_id);
-  uint32_t suspend_count = 1;
-  while (suspend_count) {
-    thread_info->thread->thread()->Resume(&suspend_count);
-  }
+  //// HACK
+  //auto thread_info = QueryThreadDebugInfo(thread_id);
+  //uint32_t suspend_count = 1;
+  //while (suspend_count) {
+  //  thread_info->thread->thread()->Resume(&suspend_count);
+  //}
 
-  fence.Wait();
+  //fence.Wait();
   bp.Suspend();
 
   return true;
@@ -1061,13 +1061,13 @@ uint32_t Processor::StepIntoGuestBranchTarget(uint32_t thread_id, uint32_t pc) {
     cpu::Breakpoint bpt(this, Breakpoint::AddressType::kGuest, nia, callback);
     bpt.Resume();
 
-    // HACK
-    uint32_t suspend_count = 1;
-    while (suspend_count) {
-      thread->thread()->Resume(&suspend_count);
-    }
+    //// HACK
+    //uint32_t suspend_count = 1;
+    //while (suspend_count) {
+    //  thread->thread()->Resume(&suspend_count);
+    //}
 
-    fence.Wait();
+    //fence.Wait();
     bpt.Suspend();
     bpf.Suspend();
   }

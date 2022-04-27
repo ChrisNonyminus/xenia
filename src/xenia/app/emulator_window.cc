@@ -762,7 +762,7 @@ void EmulatorWindow::OnKeyDown(ui::KeyEvent& e) {
       SetFullscreen(false);
     } break;
 
-#ifdef DEBUG
+//#ifdef DEBUG
     case ui::VirtualKey::kF7: {
       // Save to file
       // TODO: Choose path based on user input, or from options
@@ -775,7 +775,7 @@ void EmulatorWindow::OnKeyDown(ui::KeyEvent& e) {
       // TODO: Spawn a new thread to do this.
       emulator()->RestoreFromFile("test.sav");
     } break;
-#endif  // #ifdef DEBUG
+//#endif  // #ifdef DEBUG
 
     case ui::VirtualKey::kPause: {
       CpuBreakIntoDebugger();

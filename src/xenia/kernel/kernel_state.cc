@@ -483,7 +483,7 @@ void KernelState::TerminateTitle() {
         // Need to step the thread to a safe point (returns it to guest code
         // so it's guaranteed to not be holding any locks / in host kernel
         // code / etc). Can't do that properly if we have the lock.
-        if (!emulator_->is_paused()) {
+        if (true) {
           thread->thread()->Suspend();
         }
 
@@ -775,6 +775,7 @@ bool KernelState::Save(ByteStream* stream) {
 
   // Save the object table
   object_table_.Save(stream);
+  stream->Write(process_info_block_address_);
 
   // Write the TLS allocation bitmap
   auto tls_bitmap = tls_bitmap_.data();
@@ -847,6 +848,8 @@ bool KernelState::Restore(ByteStream* stream) {
 
   // Restore the object table
   object_table_.Restore(stream);
+
+  stream->Read(&process_info_block_address_, sizeof(uint32_t));
 
   // Read the TLS allocation bitmap
   auto num_bitmap_entries = stream->Read<uint32_t>();

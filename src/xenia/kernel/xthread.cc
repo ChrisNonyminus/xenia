@@ -892,7 +892,7 @@ bool XThread::Save(ByteStream* stream) {
 
   uint32_t pc = 0;
   if (running_) {
-    pc = emulator()->processor()->StepToGuestSafePoint(thread_id_);
+    pc = emulator()->processor()->StepToGuestSafePoint(thread_id_, true);
     if (!pc) {
       XELOGE("XThread {:08X} failed to save: could not step to a safe point!",
              handle());
@@ -906,7 +906,8 @@ bool XThread::Save(ByteStream* stream) {
   }
 
   stream->Write(kThreadSaveSignature);
-  stream->Write(thread_name_);
+  stream->Write(thread_name_.length());
+  stream->Write(&thread_name_[0], thread_name_.length());
 
   ThreadSavedState state;
   state.thread_id = thread_id_;
@@ -968,7 +969,10 @@ object_ref<XThread> XThread::Restore(KernelState* kernel_state,
 
   XELOGD("XThread {:08X}", thread->handle());
 
-  thread->thread_name_ = stream->Read<std::string>();
+  size_t namelen = stream->Read<size_t>();
+
+  thread->thread_name_.resize(namelen);
+  stream->Read(&thread->thread_name_[0], namelen);
 
   ThreadSavedState state;
   stream->Read(&state, sizeof(ThreadSavedState));

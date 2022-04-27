@@ -40,16 +40,28 @@ void ByteStream::Write(const uint8_t* buf, size_t len) {
 template <>
 std::string ByteStream::Read() {
   std::string str;
-  uint32_t len = Read<uint32_t>();
+  size_t len = Read<size_t>();
   str.resize(len);
-  Read(reinterpret_cast<uint8_t*>(&str[0]), len);
+  Read(&str[0], len);
   return str;
+}
+
+template <>
+void ByteStream::Write(std::string str) {
+  Write(str.length());
+  Write(&str[0], str.length());
+}
+
+template <>
+void ByteStream::Write(std::u16string str) {
+  Write(str.length());
+  Write(&str[0], str.length() * 2);
 }
 
 template <>
 std::u16string ByteStream::Read() {
   std::u16string str;
-  size_t len = Read<uint32_t>();
+  size_t len = Read<size_t>();
   str.resize(len);
   Read(reinterpret_cast<uint8_t*>(&str[0]), len * 2);
   return str;

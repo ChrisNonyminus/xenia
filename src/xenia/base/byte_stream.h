@@ -24,6 +24,10 @@ class ByteStream {
   void Read(uint8_t* buf, size_t len);
   void Write(const uint8_t* buf, size_t len);
 
+  void WriteString(std::string str);
+
+  void WriteString(std::u16string str);
+
   void Read(void* buf, size_t len) {
     return Read(reinterpret_cast<uint8_t*>(buf), len);
   }
@@ -72,6 +76,12 @@ std::string ByteStream::Read();
 
 template <>
 std::u16string ByteStream::Read();
+
+template <>
+void ByteStream::Write(std::string str);
+
+template <>
+void ByteStream::Write(std::u16string str);
 
 }  // namespace xe
 
