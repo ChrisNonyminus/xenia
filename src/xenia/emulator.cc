@@ -10,6 +10,7 @@
 #include "xenia/emulator.h"
 
 #include <algorithm>
+#include <array>
 #include <cinttypes>
 
 #include "config.h"
@@ -502,6 +503,20 @@ bool Emulator::RestoreFromFile(const std::filesystem::path& path) {
     XELOGE("Could not restore memory!");
     return false;
   }
+  std::array<xe::BaseHeap*, 3> heaps{};
+  heaps[0] = memory()->LookupHeapByType(true, 4096);
+  heaps[1] = memory()->LookupHeapByType(true, 64 * 1024);
+  heaps[2] = memory()->LookupHeapByType(true, 16 * 1024 * 1024);
+  auto global_lock = xe::global_critical_region::AcquireDirect();
+  static_cast<xe::PhysicalHeap*>(heaps[0])->TriggerCallbacks(
+      global_lock, heaps[0]->heap_base(),
+      heaps[0]->heap_size(), true, true);
+  static_cast<xe::PhysicalHeap*>(heaps[1])->TriggerCallbacks(
+      global_lock, heaps[1]->heap_base(),
+      heaps[1]->heap_size(), true, true);
+  static_cast<xe::PhysicalHeap*>(heaps[2])->TriggerCallbacks(
+      global_lock, heaps[2]->heap_base(),
+      heaps[2]->heap_size(), true, true);
 
   // Update the main thread.
   auto threads =

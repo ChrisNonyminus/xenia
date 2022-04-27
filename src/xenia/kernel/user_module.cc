@@ -237,6 +237,8 @@ X_STATUS UserModule::LoadXexContinue() {
 
   OnLoad();
 
+  kernel_state_->SetExecutableModule(object_ref<UserModule>(this)); // have to do this so Restored states don't freak out
+
   return X_STATUS_SUCCESS;
 }
 

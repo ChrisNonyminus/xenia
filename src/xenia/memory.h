@@ -257,7 +257,7 @@ class PhysicalHeap : public BaseHeap {
                              bool enable_data_providers);
   // Returns true if any page in the range was watched.
   bool TriggerCallbacks(
-      std::unique_lock<std::recursive_mutex> global_lock_locked_once,
+      const std::unique_lock<std::recursive_mutex>& global_lock_locked_once,
       uint32_t virtual_address, uint32_t length, bool is_write,
       bool unwatch_exact_range, bool unprotect = true);
 
@@ -444,7 +444,7 @@ class Memory {
   // TODO(Triang3l): Implement data providers - this is why locking depth of 1
   // will be required in the future.
   bool TriggerPhysicalMemoryCallbacks(
-      std::unique_lock<std::recursive_mutex> global_lock_locked_once,
+      const std::unique_lock<std::recursive_mutex>& global_lock_locked_once,
       uint32_t virtual_address, uint32_t length, bool is_write,
       bool unwatch_exact_range, bool unprotect = true);
 

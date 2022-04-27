@@ -473,7 +473,7 @@ bool Memory::AccessViolationCallbackThunk(
 }
 
 bool Memory::TriggerPhysicalMemoryCallbacks(
-    std::unique_lock<std::recursive_mutex> global_lock_locked_once,
+    const std::unique_lock<std::recursive_mutex>& global_lock_locked_once,
     uint32_t virtual_address, uint32_t length, bool is_write,
     bool unwatch_exact_range, bool unprotect) {
   BaseHeap* heap = LookupHeap(virtual_address);
@@ -598,7 +598,6 @@ bool Memory::Restore(ByteStream* stream) {
   heaps_.v80000000.Restore(stream);
   heaps_.v90000000.Restore(stream);
   heaps_.physical.Restore(stream);
-
   return true;
 }
 
@@ -1675,7 +1674,7 @@ void PhysicalHeap::EnableAccessCallbacks(uint32_t physical_address,
 }
 
 bool PhysicalHeap::TriggerCallbacks(
-    std::unique_lock<std::recursive_mutex> global_lock_locked_once,
+    const std::unique_lock<std::recursive_mutex>& global_lock_locked_once,
     uint32_t virtual_address, uint32_t length, bool is_write,
     bool unwatch_exact_range, bool unprotect) {
   // TODO(Triang3l): Support read watches.

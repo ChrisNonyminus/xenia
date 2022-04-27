@@ -235,6 +235,7 @@ void CommandProcessor::Resume() {
 
 bool CommandProcessor::Save(ByteStream* stream) {
   assert_true(paused_);
+  InitializeTrace();
 
   stream->Write<uint32_t>(primary_buffer_ptr_);
   stream->Write<uint32_t>(primary_buffer_size_);

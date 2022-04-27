@@ -232,6 +232,9 @@ void TraceWriter::WriteMemoryCommand(TraceCommandType type, uint32_t base_ptr,
 }
 
 void TraceWriter::WriteEdramSnapshot(const void* snapshot) {
+  if (!file_) {
+    return;
+  }
   EdramSnapshotCommand cmd;
   cmd.type = TraceCommandType::kEdramSnapshot;
   if (compress_output_) {
