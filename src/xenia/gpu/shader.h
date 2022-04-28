@@ -302,8 +302,9 @@ struct ParsedExecInstruction {
 
   // Whether this exec ends the shader.
   bool is_end = false;
-  // Whether to reset the current predicate.
-  bool clean = true;
+  // Whether the hardware doesn't have to wait for the predicate to be updated
+  // after this exec.
+  bool is_predicate_clean = true;
   // ?
   bool is_yield = false;
 
@@ -561,12 +562,12 @@ struct ParsedAluInstruction {
   // instruction even if only constants are being exported. The XNA disassembler
   // falls back to displaying the whole vector operation, even if only constant
   // components are written, if the scalar operation is a nop or if the vector
-  // operation has side effects (but if the scalar operation isn't nop, it
-  // outputs the entire constant mask in the scalar operation destination).
-  // Normally the XNA disassembler outputs the constant mask in both vector and
-  // scalar operations, but that's not required by assembler, so it doesn't
-  // really matter whether it's specified in the vector operation, in the scalar
-  // operation, or in both.
+  // operation changes a0, p0 or kills pixels (but if the scalar operation isn't
+  // nop, it outputs the entire constant mask in the scalar operation
+  // destination). Normally the XNA disassembler outputs the constant mask in
+  // both vector and scalar operations, but that's not required by assembler, so
+  // it doesn't really matter whether it's specified in the vector operation, in
+  // the scalar operation, or in both.
   InstructionResult vector_and_constant_result;
   // Describes how the scalar operation result is stored.
   InstructionResult scalar_result;
@@ -591,8 +592,8 @@ struct ParsedAluInstruction {
   // will result in the same microcode (since instructions with just an empty
   // write mask may have different values in other fields).
   // This is for disassembly! Translators should use the write masks and
-  // AluVectorOpHasSideEffects to skip operations, as this only covers one very
-  // specific nop format!
+  // the changed state bits in the opcode info to skip operations, as this only
+  // covers one very specific nop format!
   bool IsVectorOpDefaultNop() const;
   // Whether the scalar part of the instruction is the same as if it was omitted
   // in the assembly (if compiled or assembled with the Xbox 360 shader
@@ -913,6 +914,12 @@ class Shader {
   // True if the current shader has any `kill` instructions.
   bool kills_pixels() const { return kills_pixels_; }
 
+  // True if the shader has any texture-related instructions (any fetch
+  // instructions other than vertex fetch) writing any non-constant components.
+  bool uses_texture_fetch_instruction_results() const {
+    return uses_texture_fetch_instruction_results_;
+  }
+
   // True if the shader overrides the pixel depth.
   bool writes_depth() const { return writes_depth_; }
 
@@ -1001,6 +1008,7 @@ class Shader {
   uint32_t register_static_address_bound_ = 0;
   bool uses_register_dynamic_addressing_ = false;
   bool kills_pixels_ = false;
+  bool uses_texture_fetch_instruction_results_ = false;
   bool writes_depth_ = false;
   uint32_t writes_color_targets_ = 0b0000;
 

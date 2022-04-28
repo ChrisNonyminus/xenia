@@ -13,6 +13,7 @@
 #include <cstdint>
 
 #include "xenia/base/assert.h"
+#include "xenia/base/math.h"
 #include "xenia/base/platform.h"
 #include "xenia/gpu/xenos.h"
 
@@ -96,18 +97,44 @@ enum class ControlFlowOpcode : uint32_t {
   // Executes fetch or ALU instructions then ends execution.
   kExecEnd = 2,
   // Conditionally executes based on a bool const.
+  // PredicateClean = false.
   kCondExec = 3,
   // Conditionally executes based on a bool const then ends execution.
+  // PredicateClean = false.
+  // According to the IPR2015-00325 sequencer specification, execution ends only
+  // if the condition is actually met (unlike on the R600, where execution ends
+  // unconditionally if END_OF_PROGRAM is set in the control flow instruction).
+  // 4D5307ED has many shaders (used, in particular, in the Press Start screen
+  // background) with if / else in its tail done via cexece - cexece b130, then
+  // cexece !b130, and then an empty exece (if the condition was ignored, the
+  // second cexece would have never been reached). Also, the validator reports
+  // "Shader will try to execute instruction 3.0, but last possible instruction
+  // is 2.1" for a shader that contains just one cexece without an exece.
   kCondExecEnd = 4,
   // Conditionally executes based on the current predicate.
+  // Since 64 vertices or pixels are processed by each sequencer in the Xenos
+  // hardware, the actual condition is AND of the predicate values for all
+  // active (and not killed) invocations for (!p0) exec, and OR of them for
+  // (p0) exec - if any of the invocations passes the predicate check, all of
+  // them will enter the exec. This is according to the IPR2015-00325 sequencer
+  // specification. Because of this, the compiler makes the ALU and fetch
+  // instructions themselves inside a predicated exec predicated as well. The
+  // validator also reports mismatch between the control flow predication and
+  // ALU / fetch predication.
   kCondExecPred = 5,
   // Conditionally executes based on the current predicate then ends execution.
+  // According to the IPR2015-00325 sequencer specification, execution ends only
+  // if the condition is actually met for any of the invocations (unlike on the
+  // R600, where execution ends unconditionally if END_OF_PROGRAM is set in the
+  // control flow instruction).
   kCondExecPredEnd = 6,
-  // Starts a loop that must be terminated with kLoopEnd.
+  // Starts a loop that must be terminated with kLoopEnd, with depth of up to 4.
   kLoopStart = 7,
-  // Continues or breaks out of a loop started with kLoopStart.
+  // Continues or breaks out of a loop started with kLoopStart. According to the
+  // IPR2015-00325 sequencer specification, the incrementing of the loop
+  // iteration happens before the count and the predicated break checks.
   kLoopEnd = 8,
-  // Conditionally calls a function.
+  // Conditionally calls a function, with depth of up to 4.
   // A return address is pushed to the stack to be used by a kReturn.
   kCondCall = 9,
   // Returns from the current function as called by kCondCall.
@@ -117,11 +144,21 @@ enum class ControlFlowOpcode : uint32_t {
   kCondJmp = 11,
   // Allocates output values.
   kAlloc = 12,
-  // Conditionally executes based on the current predicate.
-  // Optionally resets the predicate value.
+  // Conditionally executes based on a bool const.
+  // PredicateClean = true.
+  // This is cexec with a bool constant (kCondExec, can be verified by comparing
+  // the XNA disassembler output with cexec containing and not containing a setp
+  // instruction), not a kCondExecPred. kCondExec doesn't have a predicate clean
+  // field (the space is occupied by the bool constant index), while
+  // kCondExecPred itself does. This is unlike what the IPR2015-00325 sequencer
+  // specification says about the Conditional_Execute_Predicates_No_Stall
+  // instruction using this opcode (in the specification, this is described as
+  // behaving like kCondExecPred with PredicateClean = false, but the
+  // specification is likely highly outdated - it doesn't even have predicate
+  // clean fields in exec instructions overall).
   kCondExecPredClean = 13,
-  // Conditionally executes based on the current predicate then ends execution.
-  // Optionally resets the predicate value.
+  // Conditionally executes based on a bool const then ends execution.
+  // PredicateClean = true.
   kCondExecPredCleanEnd = 14,
   // Hints that no more vertex fetches will be performed.
   kMarkVsFetchDone = 15,
@@ -149,9 +186,9 @@ constexpr bool DoesControlFlowOpcodeEndShader(ControlFlowOpcode opcode) {
          opcode == ControlFlowOpcode::kCondExecPredCleanEnd;
 }
 
-// Returns true if the given control flow opcode resets the predicate prior to
-// execution.
-constexpr bool DoesControlFlowOpcodeCleanPredicate(ControlFlowOpcode opcode) {
+// See the description of ControlFlowOpcode::kCondExecPredClean.
+constexpr bool DoesControlFlowCondExecHaveCleanPredicate(
+    ControlFlowOpcode opcode) {
   return opcode == ControlFlowOpcode::kCondExecPredClean ||
          opcode == ControlFlowOpcode::kCondExecPredCleanEnd;
 }
@@ -192,31 +229,39 @@ struct ControlFlowExecInstruction {
   uint32_t count() const { return count_; }
   // Sequence bits, 2 per instruction.
   // [0] - ALU (0) or fetch (1), [1] - serialize.
-  uint32_t sequence() const { return serialize_; }
-  // Whether to reset the current predicate.
-  bool clean() const { return clean_ == 1; }
+  uint32_t sequence() const { return sequence_; }
+  bool is_predicate_clean() const { return is_predicate_clean_ == 1; }
   // ?
-  bool is_yield() const { return is_yeild_ == 1; }
+  bool is_yield() const { return is_yield_ == 1; }
 
  private:
   // Word 0: (32 bits)
   uint32_t address_ : 12;
   uint32_t count_ : 3;
-  uint32_t is_yeild_ : 1;
-  uint32_t serialize_ : 12;
+  uint32_t is_yield_ : 1;
+  uint32_t sequence_ : 12;
   uint32_t vc_hi_ : 4;  // Vertex cache?
 
   // Word 1: (16 bits)
   uint32_t vc_lo_ : 2;
   uint32_t : 7;
-  uint32_t clean_ : 1;
+  // According to the description of Conditional_Execute_Predicates_No_Stall in
+  // the IPR2015-00325 sequencer specification, the sequencer's control flow
+  // logic will not wait for the predicate to be updated (apparently after this
+  // exec). The compiler specifies PredicateClean=false for the exec if the
+  // instructions inside it modify the predicate (but if the predicate set is
+  // only a refinement of the current predicate, like in case of a nested `if`,
+  // PredicateClean=true may still be set according to the IPR2015-00325
+  // sequencer specification, because the optimization would still work).
+  uint32_t is_predicate_clean_ : 1;
   uint32_t : 1;
   AddressingMode address_mode_ : 1;
   ControlFlowOpcode opcode_ : 4;
 };
 static_assert_size(ControlFlowExecInstruction, sizeof(uint32_t) * 2);
 
-// Instruction data for ControlFlowOpcode::kCondExec and kCondExecEnd.
+// Instruction data for ControlFlowOpcode::kCondExec, kCondExecEnd,
+// kCondExecPredClean and kCondExecPredCleanEnd.
 struct ControlFlowCondExecInstruction {
   ControlFlowOpcode opcode() const { return opcode_; }
   AddressingMode addressing_mode() const { return address_mode_; }
@@ -226,20 +271,20 @@ struct ControlFlowCondExecInstruction {
   uint32_t count() const { return count_; }
   // Sequence bits, 2 per instruction.
   // [0] - ALU (0) or fetch (1), [1] - serialize.
-  uint32_t sequence() const { return serialize_; }
+  uint32_t sequence() const { return sequence_; }
   // Constant index used as the conditional.
   uint32_t bool_address() const { return bool_address_; }
   // Required condition value of the comparision (true or false).
   bool condition() const { return condition_ == 1; }
   // ?
-  bool is_yield() const { return is_yeild_ == 1; }
+  bool is_yield() const { return is_yield_ == 1; }
 
  private:
   // Word 0: (32 bits)
   uint32_t address_ : 12;
   uint32_t count_ : 3;
-  uint32_t is_yeild_ : 1;
-  uint32_t serialize_ : 12;
+  uint32_t is_yield_ : 1;
+  uint32_t sequence_ : 12;
   uint32_t vc_hi_ : 4;  // Vertex cache?
 
   // Word 1: (16 bits)
@@ -251,8 +296,7 @@ struct ControlFlowCondExecInstruction {
 };
 static_assert_size(ControlFlowCondExecInstruction, sizeof(uint32_t) * 2);
 
-// Instruction data for ControlFlowOpcode::kCondExecPred, kCondExecPredEnd,
-// kCondExecPredClean, kCondExecPredCleanEnd.
+// Instruction data for ControlFlowOpcode::kCondExecPred and kCondExecPredEnd.
 struct ControlFlowCondExecPredInstruction {
   ControlFlowOpcode opcode() const { return opcode_; }
   AddressingMode addressing_mode() const { return address_mode_; }
@@ -262,26 +306,25 @@ struct ControlFlowCondExecPredInstruction {
   uint32_t count() const { return count_; }
   // Sequence bits, 2 per instruction.
   // [0] - ALU (0) or fetch (1), [1] - serialize.
-  uint32_t sequence() const { return serialize_; }
-  // Whether to reset the current predicate.
-  bool clean() const { return clean_ == 1; }
+  uint32_t sequence() const { return sequence_; }
+  bool is_predicate_clean() const { return is_predicate_clean_ == 1; }
   // Required condition value of the comparision (true or false).
   bool condition() const { return condition_ == 1; }
   // ?
-  bool is_yield() const { return is_yeild_ == 1; }
+  bool is_yield() const { return is_yield_ == 1; }
 
  private:
   // Word 0: (32 bits)
   uint32_t address_ : 12;
   uint32_t count_ : 3;
-  uint32_t is_yeild_ : 1;
-  uint32_t serialize_ : 12;
+  uint32_t is_yield_ : 1;
+  uint32_t sequence_ : 12;
   uint32_t vc_hi_ : 4;  // Vertex cache?
 
   // Word 1: (16 bits)
   uint32_t vc_lo_ : 2;
   uint32_t : 7;
-  uint32_t clean_ : 1;
+  uint32_t is_predicate_clean_ : 1;
   uint32_t condition_ : 1;
   AddressingMode address_mode_ : 1;
   ControlFlowOpcode opcode_ : 4;
@@ -292,12 +335,13 @@ static_assert_size(ControlFlowCondExecPredInstruction, sizeof(uint32_t) * 2);
 struct ControlFlowLoopStartInstruction {
   ControlFlowOpcode opcode() const { return opcode_; }
   AddressingMode addressing_mode() const { return address_mode_; }
-  // Target address to jump to when skipping the loop.
+  // Target address to jump to when skipping the loop (normally points to the
+  // instruction right after the `endloop` instruction).
   uint32_t address() const { return address_; }
   // Whether to reuse the current aL instead of reset it to loop start.
   bool is_repeat() const { return is_repeat_; }
-  // Integer constant register that holds the loop parameters.
-  // 0:7 - uint8 loop count, 8:15 - uint8 start aL, 16:23 - int8 aL step.
+  // Integer constant register that holds the loop parameters
+  // (xenos::LoopConstant).
   uint32_t loop_id() const { return loop_id_; }
 
  private:
@@ -319,12 +363,14 @@ static_assert_size(ControlFlowLoopStartInstruction, sizeof(uint32_t) * 2);
 struct ControlFlowLoopEndInstruction {
   ControlFlowOpcode opcode() const { return opcode_; }
   AddressingMode addressing_mode() const { return address_mode_; }
-  // Target address of the start of the loop body.
+  // Target address of the start of the loop body (normally points to the
+  // instruction right after the `loop` instruction).
   uint32_t address() const { return address_; }
-  // Integer constant register that holds the loop parameters.
-  // 0:7 - uint8 loop count, 8:15 - uint8 start aL, 16:23 - int8 aL step.
+  // Integer constant register that holds the loop parameters
+  // (xenos::LoopConstant).
   uint32_t loop_id() const { return loop_id_; }
-  // Break from the loop if the predicate matches the expected value.
+  // Break from the loop if the predicate in all 64 invocations matches the
+  // expected value.
   bool is_predicated_break() const { return is_predicated_break_; }
   // Required condition value of the comparision (true or false).
   bool condition() const { return condition_ == 1; }
@@ -900,8 +946,9 @@ static_assert_size(FetchInstruction, sizeof(uint32_t) * 3);
 // Conventions:
 // - All temporary registers are vec4s.
 // - Most scalar ALU operations work with one or two components of the source
-//   register passed as the third operand of the whole co-issued ALU operation,
-//   denoted by `a` (the left-hand operand) and `b` (the right-hand operand).
+//   register or the float constant passed as the third operand of the whole
+//   co-issued ALU operation, denoted by `a` (the left-hand operand) and `b`
+//   (the right-hand operand).
 //   `a` is the [(3 + src3_swizzle[6:7]) & 3] component (W - alpha).
 //   `b` is the [(0 + src3_swizzle[0:1]) & 3] component (X - red).
 // - mulsc, addsc, subsc scalar ALU operations accept two operands - a float
@@ -947,6 +994,14 @@ static_assert_size(FetchInstruction, sizeof(uint32_t) * 3);
 //   RDNA 2, which removed v_mad_f32 as well) - shader translators should not
 //   use instructions that may be interpreted by the host GPU as fused
 //   multiply-add.
+
+// For analysis of shaders and skipping instructions that write nothing.
+enum AluOpChangedState {
+  kAluOpChangedStateNone = 0,
+  kAluOpChangedStateAddressRegister = 1 << 0,
+  kAluOpChangedStatePredicate = 1 << 1,
+  kAluOpChangedStatePixelKill = 1 << 2,
+};
 
 enum class AluScalarOpcode : uint32_t {
   // Floating-Point Add
@@ -1277,17 +1332,28 @@ enum class AluScalarOpcode : uint32_t {
   kRetainPrev = 50,
 };
 
-constexpr bool AluScalarOpcodeIsKill(AluScalarOpcode scalar_opcode) {
-  switch (scalar_opcode) {
-    case AluScalarOpcode::kKillsEq:
-    case AluScalarOpcode::kKillsGt:
-    case AluScalarOpcode::kKillsGe:
-    case AluScalarOpcode::kKillsNe:
-    case AluScalarOpcode::kKillsOne:
-      return true;
-    default:
-      return false;
-  }
+struct AluScalarOpcodeInfo {
+  const char* name;
+  // 0 - no operands.
+  // 1 - one single-component (W) or two-component (WX) r# or c#.
+  // 2 - c#.w and r#.x.
+  uint32_t operand_count;
+  // If operand_count is 1, whether both W and X of the operand are used rather
+  // than only W.
+  bool single_operand_is_two_component;
+  // Note that all scalar instructions except for retain_prev modify the
+  // previous scalar register, so they must be executed even if they don't write
+  // any result and don't perform any other state changes.
+  AluOpChangedState changed_state;
+};
+
+// 6 scalar opcode bits - 64 entries.
+extern const AluScalarOpcodeInfo kAluScalarOpcodeInfos[64];
+
+inline const AluScalarOpcodeInfo& GetAluScalarOpcodeInfo(
+    AluScalarOpcode opcode) {
+  assert_true(uint32_t(opcode) < xe::countof(kAluScalarOpcodeInfos));
+  return kAluScalarOpcodeInfos[uint32_t(opcode)];
 }
 
 enum class AluVectorOpcode : uint32_t {
@@ -1385,6 +1451,9 @@ enum class AluVectorOpcode : uint32_t {
   //     dest.y = src0.y * src1.y + src2.y;
   //     dest.z = src0.z * src1.z + src2.z;
   //     dest.w = src0.w * src1.w + src2.w;
+  // According to SQ_ALU::multiply_add (used in the isHardwareAccurate case)
+  // from IPR2015-00325 sq_alu, this is FMA - rounding to single-precision only
+  // after the addition.
   kMad = 11,
 
   // Per-Component Floating-Point Conditional Move If Equal
@@ -1490,6 +1559,17 @@ enum class AluVectorOpcode : uint32_t {
   //     } else {
   //       dest.xyzw = src0.w;
   //     }
+  // However, the comparisons may be >= actually - the XNA documentation on
+  // MSDN, as well as R600 and GCN documentation, describe `max` as being
+  // implemented via >= rather than >. `max4` is documented vaguely, without the
+  // exact calculations for each component - MSDN describes it as max(xyzw), and
+  // in the R600 documentation it's max(wzyx). There's also a case more similar
+  // to `max4` where there also is a discrepancy between IPR2015-00325 sq_alu
+  // and the GCN documentation - `cube` has max3 in zyx priority order, and a >=
+  // comparison is used for this purpose on the GCN, but in IPR2015-00325 sq_alu
+  // it's implemented via >. It's possible that in an early version of the R400,
+  // the comparison was >, but was later changed to >=, but this is merely a
+  // guess.
   kMax4 = 19,
 
   // Floating-Point Predicate Counter Increment If Equal
@@ -1627,60 +1707,32 @@ enum class AluVectorOpcode : uint32_t {
   kMaxA = 29,
 };
 
-constexpr bool AluVectorOpcodeIsKill(AluVectorOpcode vector_opcode) {
-  switch (vector_opcode) {
-    case AluVectorOpcode::kKillEq:
-    case AluVectorOpcode::kKillGt:
-    case AluVectorOpcode::kKillGe:
-    case AluVectorOpcode::kKillNe:
-      return true;
-    default:
-      return false;
-  }
-}
+struct AluVectorOpcodeInfo {
+  const char* name;
+  uint32_t operand_components_used[3];
+  AluOpChangedState changed_state;
 
-// Whether the vector instruction has side effects such as discarding a pixel or
-// setting the predicate and can't be ignored even if it doesn't write to
-// anywhere. Note that all scalar operations except for retain_prev have a side
-// effect of modifying the previous scalar result register, so they must always
-// be executed even if not writing.
-constexpr bool AluVectorOpHasSideEffects(AluVectorOpcode vector_opcode) {
-  if (AluVectorOpcodeIsKill(vector_opcode)) {
-    return true;
+  uint32_t GetOperandCount() const {
+    if (!operand_components_used[2]) {
+      if (!operand_components_used[1]) {
+        if (!operand_components_used[0]) {
+          return 0;
+        }
+        return 1;
+      }
+      return 2;
+    }
+    return 3;
   }
-  switch (vector_opcode) {
-    case AluVectorOpcode::kSetpEqPush:
-    case AluVectorOpcode::kSetpNePush:
-    case AluVectorOpcode::kSetpGtPush:
-    case AluVectorOpcode::kSetpGePush:
-    case AluVectorOpcode::kMaxA:
-      return true;
-    default:
-      return false;
-  }
-}
+};
 
-// Whether each component of a source operand is used at all in the instruction
-// (doesn't check the operand count though).
-constexpr uint32_t GetAluVectorOpUsedSourceComponents(
-    AluVectorOpcode vector_opcode, uint32_t src_index) {
-  assert_not_zero(src_index);
-  switch (vector_opcode) {
-    case AluVectorOpcode::kDp3:
-      return 0b0111;
-    case AluVectorOpcode::kDp2Add:
-      return src_index == 3 ? 0b0001 : 0b0011;
-    case AluVectorOpcode::kSetpEqPush:
-    case AluVectorOpcode::kSetpNePush:
-    case AluVectorOpcode::kSetpGtPush:
-    case AluVectorOpcode::kSetpGePush:
-      return 0b1001;
-    case AluVectorOpcode::kDst:
-      return src_index == 2 ? 0b1010 : 0b0110;
-    default:
-      break;
-  }
-  return 0b1111;
+// 5 vector opcode bits - 32 entries.
+extern const AluVectorOpcodeInfo kAluVectorOpcodeInfos[32];
+
+inline const AluVectorOpcodeInfo& GetAluVectorOpcodeInfo(
+    AluVectorOpcode opcode) {
+  assert_true(uint32_t(opcode) < xe::countof(kAluVectorOpcodeInfos));
+  return kAluVectorOpcodeInfos[uint32_t(opcode)];
 }
 
 // Whether each component of a source operand is needed for the instruction if
@@ -1688,7 +1740,7 @@ constexpr uint32_t GetAluVectorOpUsedSourceComponents(
 // undefined in translation. For per-component operations, for example, only the
 // components specified in the write mask are needed, but there are instructions
 // with special behavior for certain components.
-constexpr uint32_t GetAluVectorOpNeededSourceComponents(
+inline uint32_t GetAluVectorOpNeededSourceComponents(
     AluVectorOpcode vector_opcode, uint32_t src_index,
     uint32_t used_result_components) {
   assert_not_zero(src_index);
@@ -1721,8 +1773,8 @@ constexpr uint32_t GetAluVectorOpNeededSourceComponents(
     case AluVectorOpcode::kKillNe:
       components = 0b1111;
       break;
-    // kDst is per-component, but not all components are used -
-    // GetAluVectorOpUsedSourceComponents will filter out the unused ones.
+    // kDst is per-component, but not all components are used.
+    // operand_components_used will filter out the unused ones.
     case AluVectorOpcode::kMaxA:
       if (src_index == 1) {
         components |= 0b1000;
@@ -1731,8 +1783,8 @@ constexpr uint32_t GetAluVectorOpNeededSourceComponents(
     default:
       break;
   }
-  return components &
-         GetAluVectorOpUsedSourceComponents(vector_opcode, src_index);
+  return components & GetAluVectorOpcodeInfo(vector_opcode)
+                          .operand_components_used[src_index - 1];
 }
 
 enum class ExportRegister : uint32_t {
@@ -1758,10 +1810,24 @@ enum class ExportRegister : uint32_t {
   // See R6xx/R7xx registers for details (USE_VTX_POINT_SIZE, USE_VTX_EDGE_FLAG,
   // USE_VTX_KILL_FLAG).
   // X - PSIZE (gl_PointSize).
+  //     According to tests and GL_AMD_program_binary_Z400 disassembly on an
+  //     Adreno 200 device:
+  //     * This is the full width and height of the point sprite (not half -
+  //       gl_PointSize goes directly to oPts.x).
+  //     * Clamped to PA_SU_POINT_MINMAX as a signed integer in rasterization:
+  //       * -NaN - min
+  //       * -Infinity - min
+  //       * -Normal - min
+  //       * -0 (0x80000000 - the smallest signed integer) - min
+  //       * +0 - min
+  //       * +Infinity - max
+  //       * +NaN - max
   // Y - EDGEFLAG (glEdgeFlag) for PrimitiveType::kPolygon wireframe/point
   //     drawing.
   // Z - KILLVERTEX flag (used in 4D5307ED for grass), set for killing
-  //     primitives based on PA_CL_CLIP_CNTL::VTX_KILL_OR condition.
+  //     primitives based on PA_CL_CLIP_CNTL::VTX_KILL_OR condition if bits 0:30
+  //     of this export value (the sign bit is ignored according to the
+  //     IPR2015-00325 sequencer specification) are not zero.
   kVSPointSizeEdgeFlagKillVertex = 63,
 
   kPSColor0 = 0,
@@ -1787,7 +1853,6 @@ struct alignas(uint32_t) AluInstruction {
 
   // Whether data is being exported (or written to local registers).
   bool is_export() const { return data_.export_data == 1; }
-  bool export_write_mask() const { return data_.scalar_dest_rel == 1; }
 
   // Whether the jump is predicated (or conditional).
   bool is_predicated() const { return data_.is_predicated; }
@@ -1921,7 +1986,7 @@ struct alignas(uint32_t) AluInstruction {
     }
   }
 
-  uint32_t scalar_const_op_src_temp_reg() const {
+  uint32_t scalar_const_reg_op_src_temp_reg() const {
     return (uint32_t(data_.scalar_opc) & 1) | (data_.src3_sel << 1) |
            (data_.src3_swiz & 0x3C);
   }
