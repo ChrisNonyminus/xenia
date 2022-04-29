@@ -421,6 +421,7 @@ void Emulator::Resume() {
 }
 
 bool Emulator::SaveToFile(const std::filesystem::path& path) {
+  XELOGD("Saving state...");
   Pause();
 
   filesystem::CreateEmptyFile(path);
@@ -447,10 +448,12 @@ bool Emulator::SaveToFile(const std::filesystem::path& path) {
   map->Close(stream.offset());
 
   Resume();
+  XELOGD("State saved!");
   return true;
 }
 
 bool Emulator::RestoreFromFile(const std::filesystem::path& path) {
+  XELOGD("Restoring state...");
   // Restore the emulator state from a file
   auto map = MappedMemory::Open(path, MappedMemory::Mode::kReadWrite);
   if (!map) {
@@ -532,7 +535,7 @@ bool Emulator::RestoreFromFile(const std::filesystem::path& path) {
 
   restore_fence_.Signal();
   restoring_ = false;
-
+  XELOGD("State restored!");
   return true;
 }
 
