@@ -60,6 +60,10 @@ DEFINE_string(
     "or the module specified by the game. Leave blank to launch the default "
     "module.",
     "General");
+DEFINE_string(savestate, "",
+              "The savestate file to automatically restore "
+              "from after launching the title.",
+              "General");
 
 namespace xe {
 
@@ -387,7 +391,7 @@ void Emulator::Pause() {
       continue;
     }
 
-    if (thread->is_running()) {
+    if (true) {
       thread->thread()->Suspend(nullptr);
     }
   }
@@ -842,7 +846,11 @@ X_STATUS Emulator::CompleteLaunch(const std::filesystem::path& path,
   }
   main_thread_ = main_thread;
   on_launch(title_id_.value(), title_name_);
-
+  if (cvars::savestate != "") {
+    if (!RestoreFromFile(cvars::savestate)) {
+      return X_STATUS_UNSUCCESSFUL;
+    }
+  }
   return X_STATUS_SUCCESS;
 }
 

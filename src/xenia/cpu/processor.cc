@@ -1,3 +1,4 @@
+#include "processor.h"
 /**
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
@@ -1128,7 +1129,7 @@ uint32_t Processor::StepToGuestSafePoint(uint32_t thread_id, bool ignore_host) {
     // First: Find a synchronizing instruction and go to it.
     xe::cpu::ppc::PPCDecodeData d;
     const xe::cpu::ppc::PPCOpcodeInfo* sync_info = nullptr;
-    d.address = cpu_frames[0].guest_pc - 4;
+    d.address = first_frame.guest_pc - 4;
     do {
       d.address += 4;
       d.code =
@@ -1218,6 +1219,41 @@ uint32_t Processor::StepToGuestSafePoint(uint32_t thread_id, bool ignore_host) {
   }
 
   return pc;
+}
+
+uint32_t Processor::GetLastProgramCounter(uint32_t thread_id) {
+  if (thread_id == ThreadState::GetThreadID()) {
+    assert_always(
+        "Processor::StepToSafePoint(): target thread is the calling thread!");
+    return 0;
+  }
+  auto thread_info = QueryThreadDebugInfo(thread_id);
+  auto thread = thread_info->thread;
+
+  // Now the fun part begins: Registers are only guaranteed to be synchronized
+  // with the PPC context at a basic block boundary. Unfortunately, we most
+  // likely stopped the thread at some point other than a boundary. We need to
+  // step forward until we reach a boundary, and then perform the save.
+  uint64_t frame_host_pcs[64];
+  cpu::StackFrame cpu_frames[64];
+  size_t count = stack_walker_->CaptureStackTrace(
+      thread->thread()->native_handle(), frame_host_pcs, 0,
+      xe::countof(frame_host_pcs), nullptr, nullptr);
+  stack_walker_->ResolveStack(frame_host_pcs, cpu_frames, count);
+  if (count == 0) {
+    return 0;
+  }
+
+  auto& first_frame = cpu_frames[0];
+  for (size_t i = 0; i < count; i++) {
+    if (cpu_frames[i].type == cpu::StackFrame::Type::kGuest &&
+        cpu_frames[i].guest_pc) {
+      first_frame = cpu_frames[i];
+      break;
+    }
+  }
+
+  return first_frame.guest_pc;
 }
 
 bool TestPpcCondition(const xe::cpu::ppc::PPCContext* context, uint32_t bo,

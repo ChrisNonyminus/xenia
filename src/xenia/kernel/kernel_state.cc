@@ -282,8 +282,9 @@ void KernelState::SetExecutableModule(object_ref<UserModule> module) {
     return;
   }
 
-  assert_zero(process_info_block_address_);
-  process_info_block_address_ = memory_->SystemHeapAlloc(0x60);
+  if (process_info_block_address_ == 0) {
+    process_info_block_address_ = memory_->SystemHeapAlloc(0x60);
+  }
 
   auto pib =
       memory_->TranslateVirtual<ProcessInfoBlock*>(process_info_block_address_);
@@ -474,31 +475,58 @@ void KernelState::TerminateTitle() {
   terminate_notifications_.clear();
   */
 
-  // Kill all guest threads.
-  for (auto it = threads_by_id_.begin(); it != threads_by_id_.end();) {
-    if (!XThread::IsInThread(it->second) && it->second->is_guest_thread()) {
-      auto thread = it->second;
 
-      if (thread->is_running()) {
-        // Need to step the thread to a safe point (returns it to guest code
-        // so it's guaranteed to not be holding any locks / in host kernel
-        // code / etc). Can't do that properly if we have the lock.
-        if (true) {
-          thread->thread()->Suspend();
-        }
 
-        global_lock.unlock();
-        processor_->StepToGuestSafePoint(thread->thread_id());
-        thread->Terminate(0);
-        global_lock.lock();
+  //// Kill all guest threads.
+  auto current_thread = kernel::XThread::IsInThread()
+                            ? kernel::XThread::GetCurrentThread()
+                            : nullptr;
+  auto threads =
+      object_table()->GetObjectsByType<kernel::XThread>(
+          kernel::XObject::Type::Thread);
+  for (auto thread : threads) {
+    if (thread == current_thread || !thread->is_guest_thread()) {
+      continue;
+    }
+    if (thread->is_running()) {
+      // Need to step the thread to a safe point (returns it to guest code
+      // so it's guaranteed to not be holding any locks / in host kernel
+      // code / etc). Can't do that properly if we have the lock.
+      if (true) {
+        thread->thread()->Suspend();
       }
 
-      // Erase it from the thread list.
-      it = threads_by_id_.erase(it);
-    } else {
-      ++it;
+      global_lock.unlock();
+      processor_->StepToGuestSafePoint(thread->thread_id());
+      thread->Terminate(0);
+      global_lock.lock();
     }
+    threads_by_id_[thread->thread_id()] = nullptr;
   }
+  //for (auto it = threads_by_id_.begin(); it != threads_by_id_.end();) {
+  //  if (!XThread::IsInThread(it->second) && it->second->is_guest_thread()) {
+  //    auto thread = it->second;
+
+  //    if (thread->is_running()) {
+  //      // Need to step the thread to a safe point (returns it to guest code
+  //      // so it's guaranteed to not be holding any locks / in host kernel
+  //      // code / etc). Can't do that properly if we have the lock.
+  //      if (true) {
+  //        thread->thread()->Suspend();
+  //      }
+
+  //      global_lock.unlock();
+  //      processor_->StepToGuestSafePoint(thread->thread_id());
+  //      thread->Terminate(0);
+  //      global_lock.lock();
+  //    }
+
+  //    // Erase it from the thread list.
+  //    it = threads_by_id_.erase(it);
+  //  } else {
+  //    ++it;
+  //  }
+  //}
 
   // Third: Unload all user modules (including the executable).
   for (size_t i = 0; i < user_modules_.size(); i++) {

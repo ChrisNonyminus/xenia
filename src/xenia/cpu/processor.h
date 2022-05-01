@@ -186,6 +186,8 @@ class Processor {
   // Returns the new PC guest address.
   uint32_t StepToGuestSafePoint(uint32_t thread_id, bool ignore_host = false);
 
+  uint32_t GetLastProgramCounter(uint32_t thread_id);
+
  public:
   // TODO(benvanik): hide.
   void OnThreadCreated(uint32_t handle, ThreadState* thread_state,

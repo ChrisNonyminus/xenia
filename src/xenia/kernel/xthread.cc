@@ -892,7 +892,7 @@ bool XThread::Save(ByteStream* stream) {
 
   uint32_t pc = 0;
   if (running_) {
-    pc = emulator()->processor()->StepToGuestSafePoint(thread_id_, true);
+    pc = emulator()->processor()->GetLastProgramCounter(thread_id_);
     if (!pc) {
       XELOGE("XThread {:08X} failed to save: could not step to a safe point!",
              handle());
@@ -1020,6 +1020,18 @@ object_ref<XThread> XThread::Restore(KernelState* kernel_state,
     context->xer_so = state.context.xer_so;
     context->vscr_sat = state.context.vscr_sat;
 
+    //X_KPCR* pcr =
+    //    thread->memory()->TranslateVirtual<X_KPCR*>(thread->pcr_address_);
+
+    //pcr->tls_ptr = thread->tls_static_address_;
+    //pcr->pcr_ptr = thread->pcr_address_;
+    //pcr->current_thread = thread->guest_object();
+
+    //pcr->stack_base_ptr = thread->stack_base_;
+    //pcr->stack_end_ptr = thread->stack_limit_;
+
+    //pcr->dpc_active = 0;  // DPC active bool?
+
     // Always retain when starting - the thread owns itself until exited.
     thread->RetainHandle();
 
@@ -1031,7 +1043,7 @@ object_ref<XThread> XThread::Restore(KernelState* kernel_state,
       xe::threading::set_current_thread_id(thread->handle());
 
       // Set name immediately, if we have one.
-      thread->thread_->set_name(thread->name());
+      thread->thread_->set_name(thread->thread_name_);
 
       // Profiler needs to know about the thread.
       xe::Profiler::ThreadEnter(thread->name().c_str());
@@ -1046,6 +1058,10 @@ object_ref<XThread> XThread::Restore(KernelState* kernel_state,
         assert_true(status == X_STATUS_SUCCESS);
       }
       thread->pending_mutant_acquires_.clear();
+
+      if (cpu::ThreadState::Get() == nullptr) {
+        cpu::ThreadState::Bind(thread->thread_state_);
+      }
 
       // Execute user code.
       thread->running_ = true;

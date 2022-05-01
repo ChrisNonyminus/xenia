@@ -506,11 +506,11 @@ bool EmulatorWindow::Initialize() {
     file_menu->AddChild(
         MenuItem::Create(MenuItem::Type::kString, "&Open...", "Ctrl+O",
                          std::bind(&EmulatorWindow::FileOpen, this)));
-#ifdef DEBUG
+//#ifdef DEBUG
     file_menu->AddChild(
         MenuItem::Create(MenuItem::Type::kString, "Close",
                          std::bind(&EmulatorWindow::FileClose, this)));
-#endif  // #ifdef DEBUG
+//#endif  // #ifdef DEBUG
     file_menu->AddChild(MenuItem::Create(MenuItem::Type::kSeparator));
     file_menu->AddChild(MenuItem::Create(
         MenuItem::Type::kString, "Show content directory...",
