@@ -93,3 +93,17 @@ project("xenia-app")
       debugargs({
       })
     end
+  
+
+  -- TODO: This is temporary until we get a proper premake file going for opencv.
+  filter("platforms:Windows")
+    includedirs({
+      "../../../third_party/opencv-build/win32/include"
+    })
+    libdirs({
+      "../../../third_party/opencv-build/win32/x64/vc15/lib"
+    })
+    links({
+      "opencv_world455",
+    })
+

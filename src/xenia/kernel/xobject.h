@@ -133,6 +133,7 @@ class XObject {
     SymbolicLink,
     Thread,
     Timer,
+    Usbcam,
   };
 
   XObject(Type type);

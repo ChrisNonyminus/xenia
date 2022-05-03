@@ -99,6 +99,19 @@ X_STATUS xeExGetXConfigSetting(uint16_t category, uint16_t setting,
           return X_STATUS_INVALID_PARAMETER_2;
       }
       break;
+    case 0x0007:
+        // XCONFIG_CONSOLE_CATEGORY
+        switch (setting) { 
+         case 0x0004: // XCONFIG_CONSOLE_CAMERA_SETTINGS 
+            setting_size = 4;
+            // TODO: Figure out what this setting does.
+            xe::store_and_swap<uint32_t>(value, 0);
+            break;
+         default:
+           assert_unhandled_case(setting);
+           return X_STATUS_INVALID_PARAMETER_2;
+        }
+        break;
     default:
       assert_unhandled_case(category);
       return X_STATUS_INVALID_PARAMETER_1;
