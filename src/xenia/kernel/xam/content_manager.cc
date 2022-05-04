@@ -282,6 +282,8 @@ void ContentManager::CloseOpenedFilesFromContent(
   }
 }
 
+int& ContentManager::GetCurrentDeviceId() { return content_device_id_; }
+
 }  // namespace xam
 }  // namespace kernel
 }  // namespace xe

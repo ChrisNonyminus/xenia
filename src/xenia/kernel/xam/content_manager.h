@@ -163,6 +163,8 @@ class ContentManager {
   bool IsContentOpen(const XCONTENT_AGGREGATE_DATA& data) const;
   void CloseOpenedFilesFromContent(const std::string_view root_name);
 
+  int& GetCurrentDeviceId();
+
  private:
   std::filesystem::path ResolvePackageRoot(XContentType content_type,
                                            uint32_t title_id = -1);

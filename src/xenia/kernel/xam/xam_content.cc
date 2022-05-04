@@ -15,6 +15,7 @@
 #include "xenia/kernel/xam/xam_content_device.h"
 #include "xenia/kernel/xam/xam_private.h"
 #include "xenia/kernel/xenumerator.h"
+#include "xenia/vfs/devices/stfs_container_device.h"
 #include "xenia/xbox.h"
 
 DEFINE_int32(
@@ -266,7 +267,43 @@ dword_result_t XamContentOpenFile_entry(dword_t user_index,
                                         lpdword_t license_mask_ptr,
                                         lpvoid_t overlapped_ptr) {
   // TODO(gibbed): arguments assumed based on XamContentCreate.
-  return X_ERROR_FILE_NOT_FOUND;
+
+  // Just copy over the STFS image to a path on the host and mount that. I can't think of any other solution right now.
+  auto content_manager = kernel_state()->content_manager();
+  auto fs = kernel_state()->file_system();
+  auto stfs_entry = fs->ResolvePath(path.value());
+  if (!stfs_entry) {
+    XELOGE("Failed to find stfs file \"{}\"", path.value().c_str());
+    return X_ERROR_FILE_NOT_FOUND;
+  }
+  auto mapped_entry =
+      stfs_entry->OpenMapped(xe::MappedMemory::Mode::kRead);
+  std::filesystem::path file_on_host =
+      xe::filesystem::GetExecutableFolder() / "stfs_mount" /
+      fmt::format("{:08X}", kernel_state()->title_id()) / stfs_entry->name();
+
+  xe::filesystem::CreateParentFolder(file_on_host);
+  xe::filesystem::CreateEmptyFile(file_on_host);
+  auto file = xe::filesystem::OpenFile(file_on_host, "wb");
+  fwrite(mapped_entry->data(), 1, mapped_entry->size(), file);
+
+  std::string device_path =
+      fmt::format("\\Device\\Content\\{0}", ++content_manager->GetCurrentDeviceId());
+
+  // Register the container in the virtual filesystem.
+  auto device = std::make_unique<vfs::StfsContainerDevice>(device_path, file_on_host);
+  device->Initialize();
+  fs->RegisterDevice(std::move(device));
+  fs->RegisterSymbolicLink(root_name.value() + ":", device_path);
+  XELOGI(
+      "File \"{}\" has been copied over to \"{}\" on the host and mounted on "
+      "the guest as \"{}\"({}:)...",
+      path.value(), file_on_host.string(), device_path, root_name.value());
+  if (fs->ResolvePath(root_name.value() + ":\\") == nullptr) {
+    XELOGE("...And it was a failure! The path wasn't mounted :(");
+    return X_ERROR_FILE_NOT_FOUND;
+  }
+  return X_ERROR_SUCCESS;
 }
 DECLARE_XAM_EXPORT1(XamContentOpenFile, kContent, kStub);
 

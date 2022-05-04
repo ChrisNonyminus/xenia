@@ -82,7 +82,7 @@ dword_result_t XUsbcamReadFrame_entry(dword_t handle, dword_t buffer,
     cv::Mat frame(height, width, CV_8UC4);
     cap.read(frame);
 
-    cv::cvtColor(frame, frame, cv::COLOR_BGR2BGRA);
+    //cv::cvtColor(frame, frame, cv::COLOR_BGR2BGRA);
     frame.resize(480);
 
 
