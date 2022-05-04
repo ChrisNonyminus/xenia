@@ -742,6 +742,24 @@ X_STATUS Emulator::CompleteLaunch(const std::filesystem::path& path,
     file_system_->RegisterDevice(std::move(null_device));
   }
 
+  // Setup media root.
+  auto media_root = storage_root_ / "media";
+  if (!std::filesystem::exists(media_root)) {
+    std::filesystem::create_directories(media_root);
+  }
+  std::string media_device_path = std::string("\\SystemRoot");
+  auto media_device = std::make_unique<vfs::HostPathDevice>(media_device_path,
+                                                            media_root, false); // TODO: is it read only?
+  if (!media_device->Initialize()) {
+    xe::FatalError("Unable to mount media root.");
+    return X_STATUS_NO_SUCH_FILE;
+  }
+  if (!file_system_->RegisterDevice(std::move(media_device))) {
+    xe::FatalError("Unable to register media device.");
+    return X_STATUS_NO_SUCH_FILE;
+  }
+  file_system_->RegisterSymbolicLink("media:", media_device_path);
+
   // Reset state.
   title_id_ = std::nullopt;
   title_name_ = "";
