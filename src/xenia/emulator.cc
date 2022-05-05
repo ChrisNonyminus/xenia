@@ -345,6 +345,27 @@ X_STATUS Emulator::LaunchDiscImage(const std::filesystem::path& path) {
   return CompleteLaunch(path, module_path);
 }
 
+X_STATUS Emulator::MountDiscImage(const std::filesystem::path& path) {
+  auto mount_path = "\\Device\\Cdrom0";
+
+  // Register the disc image in the virtual filesystem.
+  auto device = std::make_unique<vfs::DiscImageDevice>(mount_path, path);
+  if (!device->Initialize()) {
+    xe::FatalError("Unable to mount disc image; file not found or corrupt.");
+    return X_STATUS_NO_SUCH_FILE;
+  }
+  if (!file_system_->RegisterDevice(std::move(device))) {
+    xe::FatalError("Unable to register disc image.");
+    return X_STATUS_NO_SUCH_FILE;
+  }
+
+  // Create symlinks to the device.
+  file_system_->RegisterSymbolicLink("game:", mount_path);
+  file_system_->RegisterSymbolicLink("d:", mount_path);
+
+  return X_STATUS_SUCCESS;
+}
+
 X_STATUS Emulator::LaunchStfsContainer(const std::filesystem::path& path) {
   auto mount_path = "\\Device\\Cdrom0";
 

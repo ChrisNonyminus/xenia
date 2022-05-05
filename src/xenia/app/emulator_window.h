@@ -131,6 +131,7 @@ class EmulatorWindow {
   void StartDashboard();
   void FileOpen();
   void FileClose();
+  void MountDiscImage();
   void ShowContentDirectory();
   void CpuTimeScalarReset();
   void CpuTimeScalarSetHalf();

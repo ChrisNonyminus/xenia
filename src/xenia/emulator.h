@@ -189,6 +189,9 @@ class Emulator {
   // Launches the dash.xex file found in the media folder.
   X_STATUS LaunchDashboard();
 
+  // Mounts a disc image to \\Device\\Cdrom0 (without launching it) using a given path.
+  X_STATUS MountDiscImage(const std::filesystem::path& path);
+
   void Pause();
   void Resume();
   bool is_paused() const { return paused_; }
