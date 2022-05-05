@@ -368,6 +368,10 @@ X_STATUS Emulator::LaunchStfsContainer(const std::filesystem::path& path) {
   return CompleteLaunch(path, module_path);
 }
 
+X_STATUS Emulator::LaunchDashboard() {
+  return CompleteLaunch("", "media:\\dash.xex");
+}
+
 void Emulator::Pause() {
   if (paused_) {
     return;

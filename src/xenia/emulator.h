@@ -186,6 +186,9 @@ class Emulator {
   // Launches a game from an STFS container file.
   X_STATUS LaunchStfsContainer(const std::filesystem::path& path);
 
+  // Launches the dash.xex file found in the media folder.
+  X_STATUS LaunchDashboard();
+
   void Pause();
   void Resume();
   bool is_paused() const { return paused_; }

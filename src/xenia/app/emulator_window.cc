@@ -511,6 +511,9 @@ bool EmulatorWindow::Initialize() {
         MenuItem::Create(MenuItem::Type::kString, "Close",
                          std::bind(&EmulatorWindow::FileClose, this)));
 #endif  // #ifdef DEBUG
+    file_menu->AddChild(
+        MenuItem::Create(MenuItem::Type::kString, "&Start Dashboard", "",
+                         std::bind(&EmulatorWindow::StartDashboard, this)));
     file_menu->AddChild(MenuItem::Create(MenuItem::Type::kSeparator));
     file_menu->AddChild(MenuItem::Create(
         MenuItem::Type::kString, "Show content directory...",
@@ -804,6 +807,18 @@ void EmulatorWindow::FileDrop(const std::filesystem::path& filename) {
     return;
   }
   auto result = emulator_->LaunchPath(filename);
+  if (XFAILED(result)) {
+    // TODO: Display a message box.
+    XELOGE("Failed to launch target: {:08X}", result);
+  }
+}
+
+void EmulatorWindow::StartDashboard() {
+  if (!emulator_initialized_) {
+    return;
+  }
+  auto result = emulator_->LaunchDashboard();
+
   if (XFAILED(result)) {
     // TODO: Display a message box.
     XELOGE("Failed to launch target: {:08X}", result);
