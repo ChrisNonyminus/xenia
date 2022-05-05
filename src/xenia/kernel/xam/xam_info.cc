@@ -312,8 +312,8 @@ void XamLoaderLaunchTitleEx_entry(lpstring_t launch_path,
                     ->file_system()
                     ->ResolvePath(loader_data.launch_path)
                     ->OpenMapped(MappedMemory::Mode::kRead);
-  loader_data.launch_data.resize(module->size());
-  memcpy(loader_data.launch_data.data(), module->data(), module->size());
+  /*loader_data.launch_data.resize(module->size());
+  memcpy(loader_data.launch_data.data(), module->data(), module->size());*/
   loader_data.launch_data_present = true;
   // This function does not return.
   kernel_state()->TerminateTitle();
@@ -349,8 +349,8 @@ void XamLoaderLaunchTitle_entry(lpstring_t raw_name_ptr, dword_t flags) {
                     ->file_system()
                     ->ResolvePath(loader_data.launch_path)
                     ->OpenMapped(MappedMemory::Mode::kRead);
-  loader_data.launch_data.resize(module->size());
-  memcpy(loader_data.launch_data.data(), module->data(), module->size());
+  /*loader_data.launch_data.resize(module->size());
+  memcpy(loader_data.launch_data.data(), module->data(), module->size());*/
   loader_data.launch_data_present = true;
   // This function does not return.
   kernel_state()->TerminateTitle();
