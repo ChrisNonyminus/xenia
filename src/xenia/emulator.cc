@@ -789,8 +789,8 @@ X_STATUS Emulator::CompleteLaunch(const std::filesystem::path& path,
     file_system_->RegisterDevice(std::move(null_device));
   }
 
-  // Setup media root. (for dashboard)
-  auto media_root = storage_root_ / "media";
+  // Setup dashboard root.
+  auto media_root = storage_root_ / "dashmedia";
   if (!std::filesystem::exists(media_root)) {
     std::filesystem::create_directories(media_root);
   }
@@ -798,10 +798,10 @@ X_STATUS Emulator::CompleteLaunch(const std::filesystem::path& path,
   auto media_device = std::make_unique<vfs::HostPathDevice>(media_device_path,
                                                             media_root, false); // TODO: is it read only?
   if (!media_device->Initialize()) {
-    XELOGE("Unable to mount media root.");
+    XELOGE("Unable to mount dashmedia root.");
   } else {
     if (!file_system_->RegisterDevice(std::move(media_device))) {
-      XELOGE("Unable to register media device.");
+      XELOGE("Unable to register dashmedia device.");
     } else {
       file_system_->RegisterSymbolicLink("media:", media_device_path);
     }
