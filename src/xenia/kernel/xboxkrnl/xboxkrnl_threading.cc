@@ -257,6 +257,20 @@ dword_result_t KeSetAffinityThread_entry(lpvoid_t thread_ptr, dword_t affinity,
 }
 DECLARE_XBOXKRNL_EXPORT1(KeSetAffinityThread, kThreading, kImplemented);
 
+dword_result_t KeSetPriorityThread_entry(lpvoid_t thread_ptr, dword_t increment) {
+  // TODO: is this working?
+  int32_t prev_priority = 0;
+  auto thread = XObject::GetNativeObject<XThread>(kernel_state(), thread_ptr);
+
+  if (thread) {
+    prev_priority = thread->QueryPriority();
+    thread->SetPriority(increment);
+  }
+
+  return prev_priority;
+}
+DECLARE_XBOXKRNL_EXPORT1(KeSetPriorityThread, kNone, kStub);
+
 dword_result_t KeQueryBasePriorityThread_entry(lpvoid_t thread_ptr) {
   int32_t priority = 0;
 

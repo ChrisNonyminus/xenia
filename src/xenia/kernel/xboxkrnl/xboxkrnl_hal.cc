@@ -31,6 +31,15 @@ void HalReturnToFirmware_entry(dword_t routine) {
 }
 DECLARE_XBOXKRNL_EXPORT2(HalReturnToFirmware, kNone, kStub, kImportant);
 
+void HalGetCurrentAVPack_entry(pointer_t<X_VIDEO_MODE> video_mode, dword_t r4,
+                               dword_t r5, dword_t buffer_ptr, dword_t buffer_size,
+                               dword_t width, dword_t height) {
+  // parameters assumed from nearby implemented function calls that had the same values in the registers as this function.
+  // dunno what r4 and r5 are
+  // ???
+}
+DECLARE_XBOXKRNL_EXPORT1(HalGetCurrentAVPack, kNone, kStub);
+
 }  // namespace xboxkrnl
 }  // namespace kernel
 }  // namespace xe

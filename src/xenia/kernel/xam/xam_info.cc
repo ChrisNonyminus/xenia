@@ -281,6 +281,45 @@ dword_result_t XamLoaderGetLaunchData_entry(lpvoid_t buffer_ptr,
 }
 DECLARE_XAM_EXPORT1(XamLoaderGetLaunchData, kNone, kSketchy);
 
+// https://github.com/jogolden/testdev/blob/master/xkelib/xam/_xamext.h#L379
+void XamLoaderLaunchTitleEx_entry(lpstring_t launch_path,
+                                            lpstring_t mount_path,
+                                            lpstring_t cmd_line,
+                                            dword_t flags) {
+  auto xam = kernel_state()->GetKernelModule<XamModule>("xam.xex");
+
+  auto& loader_data = xam->loader_data();
+  loader_data.launch_flags = flags;
+
+  if (!launch_path) {
+    // assume we're returning to the dashboard
+    loader_data.launch_path = "media:\\dash.xex";
+  } else {
+    auto path = launch_path.value();
+    if (path.empty()) {
+      loader_data.launch_path = "game:\\default.xex";
+    } else {
+      if (xe::utf8::find_name_from_guest_path(path) == path) {
+        path = xe::utf8::join_guest_paths(
+            xe::utf8::find_base_guest_path(
+                kernel_state()->GetExecutableModule()->path()),
+            path);
+      }
+      loader_data.launch_path = path;
+    }
+  }
+  auto module = kernel_state()
+                    ->file_system()
+                    ->ResolvePath(loader_data.launch_path)
+                    ->OpenMapped(MappedMemory::Mode::kRead);
+  loader_data.launch_data.resize(module->size());
+  memcpy(loader_data.launch_data.data(), module->data(), module->size());
+  loader_data.launch_data_present = true;
+  // This function does not return.
+  kernel_state()->TerminateTitle();
+}
+DECLARE_XAM_EXPORT1(XamLoaderLaunchTitleEx, kNone, kStub);
+
 void XamLoaderLaunchTitle_entry(lpstring_t raw_name_ptr, dword_t flags) {
   auto xam = kernel_state()->GetKernelModule<XamModule>("xam.xex");
 
@@ -302,9 +341,17 @@ void XamLoaderLaunchTitle_entry(lpstring_t raw_name_ptr, dword_t flags) {
       loader_data.launch_path = path;
     }
   } else {
-    assert_always("Game requested exit to dashboard via XamLoaderLaunchTitle");
+    //assert_always("Game requested exit to dashboard via XamLoaderLaunchTitle");
+    loader_data.launch_path = "media:\\dash.xex";
   }
 
+  auto module = kernel_state()
+                    ->file_system()
+                    ->ResolvePath(loader_data.launch_path)
+                    ->OpenMapped(MappedMemory::Mode::kRead);
+  loader_data.launch_data.resize(module->size());
+  memcpy(loader_data.launch_data.data(), module->data(), module->size());
+  loader_data.launch_data_present = true;
   // This function does not return.
   kernel_state()->TerminateTitle();
 }

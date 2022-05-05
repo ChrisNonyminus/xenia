@@ -703,6 +703,55 @@ dword_result_t XamParseGamerTileKey_entry(lpdword_t key_ptr, lpdword_t out1_ptr,
 }
 DECLARE_XAM_EXPORT1(XamParseGamerTileKey, kUserProfiles, kStub);
 
+// https://github.com/xenia-canary/xenia-canary/blob/new_dashboard_run/src/xenia/kernel/xam/xam_user.cc
+
+dword_result_t XamReadTile_entry(dword_t tile_type, dword_t title_id,
+                                 qword_t tile_id, dword_t user_index,
+                                 lpdword_t output_ptr,
+                                 lpdword_t buffer_size_ptr,
+                                 dword_t overlapped_ptr) {
+  // TODO: fully implement this.
+  if (!tile_id) {
+    return X_ERROR_INVALID_PARAMETER;
+  }
+  // Wrap function in a lambda func so we can use return to exit out when
+  // needed, but still always be able to set the xoverlapped value
+  // this way we don't need a bunch of if/else nesting to accomplish the same
+  auto main_fn = [tile_type, title_id, tile_id, user_index, output_ptr,
+                  buffer_size_ptr]() {
+    uint64_t image_id = tile_id;
+
+    uint8_t* data = nullptr;
+    size_t data_len = 0;
+    std::unique_ptr<MappedMemory> mmap;
+
+    if (!output_ptr || !buffer_size_ptr) {
+      return X_ERROR_FILE_NOT_FOUND;
+    }
+
+    *buffer_size_ptr = (uint32_t)data_len;
+
+    return X_ERROR_SUCCESS;
+  };
+
+  auto result = main_fn();
+
+  if (overlapped_ptr) {
+    kernel_state()->CompleteOverlappedImmediate(overlapped_ptr, result);
+    return X_ERROR_IO_PENDING;
+  }
+  return result;
+}
+DECLARE_XAM_EXPORT1(XamReadTile, kUserProfiles, kStub);
+
+dword_result_t XamUserCreateTitlesPlayedEnumerator_entry(
+    dword_t user_index, dword_t xuid, dword_t flags, dword_t offset,
+    dword_t games_count, lpdword_t buffer_size_ptr, lpdword_t handle_ptr) {
+  // TODO: implement this.
+  return X_ERROR_SUCCESS;
+}
+DECLARE_XAM_EXPORT1(XamUserCreateTitlesPlayedEnumerator, kUserProfiles, kStub);
+
 dword_result_t XamReadTileToTexture_entry(dword_t unknown, dword_t title_id,
                                           qword_t tile_id, dword_t user_index,
                                           lpvoid_t buffer_ptr, dword_t stride,

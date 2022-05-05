@@ -8,6 +8,7 @@
  */
 
 #include "xenia/base/logging.h"
+#include "xenia/config.h"
 #include "xenia/cpu/processor.h"
 #include "xenia/kernel/kernel_state.h"
 #include "xenia/kernel/user_module.h"
@@ -36,10 +37,47 @@ DEFINE_int32(user_country, 103,
              "  92=SI  93=SK  95=SV  96=SY  97=TH  98=TN  99=TR 100=TT 101=TW\n"
              " 102=UA 103=US 104=UY 105=UZ 106=VE 107=VN 108=YE 109=ZA\n",
              "XConfig");
+DEFINE_uint32(user_retail_flags, 0,
+             "Retail flags.\n"
+             "Set to 64 to skip dashboard setup when running dashboard.", "XConfig");
 
 namespace xe {
 namespace kernel {
 namespace xboxkrnl {
+
+X_STATUS xeExSetXConfigSetting(uint16_t category, uint16_t setting,
+                               void* buffer, uint16_t setting_size) {
+  auto cv_user_retail_flags =
+      dynamic_cast<cvar::ConfigVar<uint32_t>*>(cv::cv_user_retail_flags);
+  switch (category) {
+    case 0x0003:
+      // XCONFIG_USER_CATEGORY
+      switch (setting) {
+        case 0x000C:
+          xe::store_and_swap<uint32_t>(&cvars::user_retail_flags,
+                                       *(uint32_t*)buffer);
+          cv_user_retail_flags->OverrideConfigValue(cvars::user_retail_flags);
+          break;
+        default:
+          assert_unhandled_case(setting);
+          XELOGE(
+              "ExSetXConfig: Unknown setting! Category {:04X}, setting "
+              "{:04X}.",
+              category, setting);
+          return X_STATUS_INVALID_PARAMETER_2;
+      }
+      break;
+    default:
+      assert_unhandled_case(category);
+      XELOGE(
+          "ExSetXConfig: Unknown setting! Category {:04X}, setting "
+          "{:04X}.",
+          category, setting);
+      return X_STATUS_INVALID_PARAMETER_1;
+  }
+  config::SaveConfig();
+  return X_STATUS_SUCCESS;
+}
 
 X_STATUS xeExGetXConfigSetting(uint16_t category, uint16_t setting,
                                void* buffer, uint16_t buffer_size,
@@ -60,6 +98,10 @@ X_STATUS xeExGetXConfigSetting(uint16_t category, uint16_t setting,
           break;
         default:
           assert_unhandled_case(setting);
+          XELOGE(
+              "ExGetXConfig: Unknown setting! Category {:04X}, setting "
+              "{:04X}.",
+              category, setting);
           return X_STATUS_INVALID_PARAMETER_2;
       }
       break;
@@ -87,20 +129,37 @@ X_STATUS xeExGetXConfigSetting(uint16_t category, uint16_t setting,
           break;
         case 0x000C:  // XCONFIG_USER_RETAIL_FLAGS
           setting_size = 4;
-          // TODO(benvanik): get this value.
-          xe::store_and_swap<uint32_t>(value, 0);
+          xe::store_and_swap<uint32_t>(value, cvars::user_retail_flags);
           break;
         case 0x000E:  // XCONFIG_USER_COUNTRY
           setting_size = 1;
           value[0] = static_cast<uint8_t>(cvars::user_country);
           break;
+        case 0x000F:  // XCONFIG_USER_PC_FLAGS
+          setting_size = 4;
+          // TODO: get this value.
+          xe::store_and_swap<uint32_t>(value, 0);
+          break;
+        case 0x0015:  // XCONFIG_USER_AV_VGA_SCREENSZ
+          setting_size = 4;
+          // TODO: get this value.
+          xe::store_and_swap<uint32_t>(value, 0);
+          break;
         default:
           assert_unhandled_case(setting);
+          XELOGE(
+              "ExGetXConfig: Unknown setting! Category {:04X}, setting "
+              "{:04X}.",
+              category, setting);
           return X_STATUS_INVALID_PARAMETER_2;
       }
       break;
     default:
       assert_unhandled_case(category);
+      XELOGE(
+          "ExGetXConfig: Unknown category! Category {:04X}, setting "
+          "{:04X}.",
+          category, setting);
       return X_STATUS_INVALID_PARAMETER_1;
   }
 
@@ -137,6 +196,11 @@ dword_result_t ExGetXConfigSetting_entry(word_t category, word_t setting,
   return result;
 }
 DECLARE_XBOXKRNL_EXPORT1(ExGetXConfigSetting, kModules, kImplemented);
+
+dword_result_t ExSetXConfigSetting_entry(word_t category, word_t setting, lpvoid_t buffer_ptr, word_t setting_size) {
+  return xeExSetXConfigSetting(category, setting, buffer_ptr, setting_size);
+}
+DECLARE_XBOXKRNL_EXPORT1(ExSetXConfigSetting, kModules, kStub);
 
 }  // namespace xboxkrnl
 }  // namespace kernel
