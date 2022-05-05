@@ -286,11 +286,11 @@ X_STATUS Emulator::LaunchXexFile(const std::filesystem::path& path) {
   // We create a virtual filesystem pointing to its directory and symlink
   // that to the game filesystem.
   // e.g., /my/files/foo.xex will get a local fs at:
-  // \\Device\\Harddisk0\\Partition1
+  // \\Device\\Cdrom0
   // and then get that symlinked to game:\, so
   // -> game:\foo.xex
 
-  auto mount_path = "\\Device\\Harddisk0\\Partition1";
+  auto mount_path = "\\Device\\Cdrom0";
 
   // Register the local directory in the virtual filesystem.
   auto parent_path = path.parent_path();
@@ -337,6 +337,11 @@ X_STATUS Emulator::LaunchDiscImage(const std::filesystem::path& path) {
 
   // Launch the game.
   auto module_path(FindLaunchModule());
+  if (!file_system_->ResolvePath("game:\\default.xex")) {
+    // Likely an Xbox1 iso. Default to xefu if it is in the system folder.
+    module_path =
+        "\\Device\\Harddisk0\\SystemPartition\\Compatibility\\xefu.xex";
+  }
   return CompleteLaunch(path, module_path);
 }
 
@@ -723,6 +728,44 @@ X_STATUS Emulator::CompleteLaunch(const std::filesystem::path& path,
   // callbacks which expect to be called from the UI thread.
   assert_true(display_window_->app_context().IsInUIThread());
 
+  // Setup SystemPartition.
+  // NOTE: this must be done BEFORE setting up NullDevices,
+  // or else the null Harddisk0 device will override
+  // this device!
+  auto system_root = storage_root_ / "system";
+  if (!std::filesystem::exists(system_root)) {
+    std::filesystem::create_directories(system_root);
+  }
+  std::string system_device_path =
+      std::string("\\Device\\Harddisk0\\Partition1");  // TODO: is this correct?
+  auto system_device = std::make_unique<vfs::HostPathDevice>(
+      system_device_path, system_root, false);  // TODO: is it read only?
+  if (!system_device->Initialize()) {
+    XELOGE("Unable to mount SystemPartition root.");
+  } else {
+    if (!file_system_->RegisterDevice(std::move(system_device))) {
+      XELOGE("Unable to register SystemPartition device.");
+    } else {
+      file_system_->RegisterSymbolicLink("\\Device\\Harddisk0\\SystemPartition",
+                                         system_device_path);
+    }
+  }
+
+  // Setup Cache0 Partition. This must also be done 
+  // before setting up NullDevices!
+  auto cache_device = std::make_unique<xe::vfs::HostPathDevice>(
+      "\\Device\\Harddisk0\\Cache0", storage_root_ / "system_cache", false);
+  if (!cache_device->Initialize()) {
+    XELOGE("Unable to scan cache path");
+  } else {
+    if (!file_system()->RegisterDevice(std::move(cache_device))) {
+      XELOGE("Unable to register cache path");
+    } else {
+      file_system()->RegisterSymbolicLink(
+          "cache:", "\\Device\\Harddisk0\\Cache0");
+    }
+  }
+
   // Setup NullDevices for raw HDD partition accesses
   // Cache/STFC code baked into games tries reading/writing to these
   // By using a NullDevice that just returns success to all IO requests it
@@ -734,7 +777,7 @@ X_STATUS Emulator::CompleteLaunch(const std::filesystem::path& path,
   // Partition1 will go to this. Registering during CompleteLaunch allows us to
   // make sure any HostPathDevices are ready beforehand.
   // (see comment above cache:\ device registration for more info about why)
-  auto null_paths = {std::string("\\Partition0"), std::string("\\Cache0"),
+  auto null_paths = {std::string("\\Partition0"),
                      std::string("\\Cache1")};
   auto null_device =
       std::make_unique<vfs::NullDevice>("\\Device\\Harddisk0", null_paths);
@@ -742,7 +785,7 @@ X_STATUS Emulator::CompleteLaunch(const std::filesystem::path& path,
     file_system_->RegisterDevice(std::move(null_device));
   }
 
-  // Setup media root.
+  // Setup media root. (for dashboard)
   auto media_root = storage_root_ / "media";
   if (!std::filesystem::exists(media_root)) {
     std::filesystem::create_directories(media_root);
@@ -751,14 +794,15 @@ X_STATUS Emulator::CompleteLaunch(const std::filesystem::path& path,
   auto media_device = std::make_unique<vfs::HostPathDevice>(media_device_path,
                                                             media_root, false); // TODO: is it read only?
   if (!media_device->Initialize()) {
-    xe::FatalError("Unable to mount media root.");
-    return X_STATUS_NO_SUCH_FILE;
+    XELOGE("Unable to mount media root.");
+  } else {
+    if (!file_system_->RegisterDevice(std::move(media_device))) {
+      XELOGE("Unable to register media device.");
+    } else {
+      file_system_->RegisterSymbolicLink("media:", media_device_path);
+    }
   }
-  if (!file_system_->RegisterDevice(std::move(media_device))) {
-    xe::FatalError("Unable to register media device.");
-    return X_STATUS_NO_SUCH_FILE;
-  }
-  file_system_->RegisterSymbolicLink("media:", media_device_path);
+
 
   // Reset state.
   title_id_ = std::nullopt;
