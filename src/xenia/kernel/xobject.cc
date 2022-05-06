@@ -77,6 +77,9 @@ void XObject::RetainHandle() {
 
 bool XObject::ReleaseHandle() {
   // FIXME: Return true when handle is actually released.
+  if (handles_.empty()) {
+    return true; // temporary HACK for sam & max
+  }
   return kernel_state_->object_table()->ReleaseHandle(handles_[0]) ==
          X_STATUS_SUCCESS;
 }
