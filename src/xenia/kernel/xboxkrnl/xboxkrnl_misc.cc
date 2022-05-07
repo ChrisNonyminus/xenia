@@ -23,6 +23,12 @@ void KeEnableFpuExceptions_entry(dword_t enabled) {
 }
 DECLARE_XBOXKRNL_EXPORT1(KeEnableFpuExceptions, kNone, kStub);
 
+dword_result_t EtxProducerRegister_entry(unknown_t r3, unknown_t r4, unknown_t r5, unknown_t r6,
+                      unknown_t r7, unknown_t r8, unknown_t r9) {
+  return X_STATUS_SUCCESS;
+}
+DECLARE_XBOXKRNL_EXPORT1(EtxProducerRegister, kNone, kStub);
+
 }  // namespace xboxkrnl
 }  // namespace kernel
 }  // namespace xe

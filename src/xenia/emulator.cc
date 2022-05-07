@@ -779,7 +779,7 @@ X_STATUS Emulator::CompleteLaunch(const std::filesystem::path& path,
   // Setup Cache0 Partition. This must also be done 
   // before setting up NullDevices!
   auto cache_device = std::make_unique<xe::vfs::HostPathDevice>(
-      "\\Device\\Harddisk0\\Cache0", storage_root_ / "system_cache", false);
+      "\\Device\\Harddisk0\\Cache0", storage_root_ / "hdd" / "cache", false);
   if (!cache_device->Initialize()) {
     XELOGE("Unable to scan cache path");
   } else {
@@ -803,6 +803,7 @@ X_STATUS Emulator::CompleteLaunch(const std::filesystem::path& path,
   // make sure any HostPathDevices are ready beforehand.
   // (see comment above cache:\ device registration for more info about why)
   auto null_paths = {std::string("\\Partition0"),
+                     std::string("\\Cache0"),
                      std::string("\\Cache1")};
   auto null_device =
       std::make_unique<vfs::NullDevice>("\\Device\\Harddisk0", null_paths);
@@ -816,8 +817,8 @@ X_STATUS Emulator::CompleteLaunch(const std::filesystem::path& path,
     std::filesystem::create_directories(media_root);
   }
   std::string media_device_path = std::string("\\SystemRoot");
-  auto media_device = std::make_unique<vfs::HostPathDevice>(media_device_path,
-                                                            media_root, false); // TODO: is it read only?
+  auto media_device = std::make_unique<vfs::HostPathDevice>(
+      media_device_path, media_root, false);  // TODO: is it read only?
   if (!media_device->Initialize()) {
     XELOGE("Unable to mount dashmedia root.");
   } else {
@@ -825,6 +826,21 @@ X_STATUS Emulator::CompleteLaunch(const std::filesystem::path& path,
       XELOGE("Unable to register dashmedia device.");
     } else {
       file_system_->RegisterSymbolicLink("media:", media_device_path);
+    }
+  }
+
+  // Setup DASHUSER root.
+  auto dashuser_root = storage_root_ / "dashuser";
+  std::string dashuser_device_path = std::string("\\DASHUSER");
+  auto dashuser_device = std::make_unique<vfs::HostPathDevice>(
+      dashuser_device_path, dashuser_root, false);
+  if (!dashuser_device->Initialize()) {
+    XELOGE("Unable to mount dashuser root.");
+  } else {
+    if (!file_system_->RegisterDevice(std::move(dashuser_device))) {
+      XELOGE("Unable to register dashuser device.");
+    } else {
+      file_system_->RegisterSymbolicLink("dashuser:", dashuser_device_path);
     }
   }
 

@@ -315,6 +315,21 @@ void XamLoaderLaunchTitleEx_entry(lpstring_t launch_path,
 }
 DECLARE_XAM_EXPORT1(XamLoaderLaunchTitleEx, kNone, kStub);
 
+void XamLoaderGetMediaInfo_entry(lpdword_t unk1, dword_t unk2) {
+  // 0 - No Disc
+  // 1 - Game Disc
+  // 3 - HD DVD
+  // 5 - DVD
+  // 7 - CD
+  if (kernel_state()->file_system()->ResolvePath("\\Device\\Cdrom0")) {
+    xe::store_and_swap<uint32_t>(unk1, 1);
+  } else {
+    xe::store_and_swap<uint32_t>(unk1, 0);
+  }
+}
+
+DECLARE_XAM_EXPORT1(XamLoaderGetMediaInfo, kNone, kStub);
+
 void XamLoaderLaunchTitle_entry(lpstring_t raw_name_ptr, dword_t flags) {
   auto xam = kernel_state()->GetKernelModule<XamModule>("xam.xex");
 

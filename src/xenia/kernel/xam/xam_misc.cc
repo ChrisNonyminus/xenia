@@ -31,6 +31,48 @@ dword_result_t XamGetDashContext_entry() {
 }
 DECLARE_XAM_EXPORT1(XamGetDashContext, kNone, kStub);
 
+dword_result_t XamFitnessClearBodyProfileRecords_entry(
+    unknown_t r3, unknown_t r4, unknown_t r5, unknown_t r6,
+                      unknown_t r7, unknown_t r8, unknown_t r9) {
+  return X_STATUS_SUCCESS;
+}
+DECLARE_XAM_EXPORT1(XamFitnessClearBodyProfileRecords, kNone, kStub);
+
+dword_result_t XamSetLastActiveUserData_entry(unknown_t r3, unknown_t r4,
+                                              unknown_t r5, unknown_t r6,
+                      unknown_t r7, unknown_t r8, unknown_t r9) {
+  return X_STATUS_SUCCESS;
+}
+DECLARE_XAM_EXPORT1(XamSetLastActiveUserData, kNone, kStub);
+
+dword_result_t XamGetLastActiveUserData_entry(unknown_t r3, unknown_t r4,
+                                              unknown_t r5, unknown_t r6,
+                      unknown_t r7, unknown_t r8, unknown_t r9) {
+  return X_STATUS_SUCCESS;
+}
+DECLARE_XAM_EXPORT1(XamGetLastActiveUserData, kNone, kStub);
+
+dword_result_t XamPngDecode_entry(unknown_t r3, unknown_t r4, unknown_t r5,
+                                  unknown_t r6, unknown_t r7, unknown_t r8,
+                                  unknown_t r9) {
+  return X_STATUS_SUCCESS;
+}
+DECLARE_XAM_EXPORT1(XamPngDecode, kNone, kStub);
+
+dword_result_t XamPackageManagerGetExperienceMode_entry(
+    unknown_t r3, unknown_t r4, unknown_t r5, unknown_t r6, unknown_t r7,
+    unknown_t r8, unknown_t r9) {
+  return X_STATUS_SUCCESS;
+}
+DECLARE_XAM_EXPORT1(XamPackageManagerGetExperienceMode, kNone, kStub);
+
+dword_result_t XamGetLiveHiveValueW_entry(lpstring_t name, lpstring_t value,
+                                          dword_t ch_value, dword_t unk,
+                                          lpvoid_t overlapped_ptr) {
+  return X_STATUS_SUCCESS;
+}
+DECLARE_XAM_EXPORT1(XamGetLiveHiveValueW, kNone, kStub);
+
 }  // namespace xam
 }  // namespace kernel
 }  // namespace xe

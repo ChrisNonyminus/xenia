@@ -752,6 +752,13 @@ dword_result_t XamUserCreateTitlesPlayedEnumerator_entry(
 }
 DECLARE_XAM_EXPORT1(XamUserCreateTitlesPlayedEnumerator, kUserProfiles, kStub);
 
+dword_result_t XamUserIsUnsafeProgrammingAllowed_entry(
+    unknown_t r3, unknown_t r4, unknown_t r5, unknown_t r6, unknown_t r7,
+    unknown_t r8, unknown_t r9) {
+  return X_ERROR_SUCCESS;
+}
+DECLARE_XAM_EXPORT1(XamUserIsUnsafeProgrammingAllowed, kUserProfiles, kStub);
+
 dword_result_t XamReadTileToTexture_entry(dword_t unknown, dword_t title_id,
                                           qword_t tile_id, dword_t user_index,
                                           lpvoid_t buffer_ptr, dword_t stride,

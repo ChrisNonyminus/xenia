@@ -209,6 +209,13 @@ void VdShutdownEngines_entry() {
 }
 DECLARE_XBOXKRNL_EXPORT1(VdShutdownEngines, kVideo, kStub);
 
+dword_result_t VdSetStudioRGBMode_entry(unknown_t r3, unknown_t r4,
+                                        unknown_t r5, unknown_t r6,
+                      unknown_t r7, unknown_t r8, unknown_t r9) {
+  return X_STATUS_SUCCESS;
+}
+DECLARE_XBOXKRNL_EXPORT1(VdSetStudioRGBMode, kVideo, kStub);
+
 dword_result_t VdGetGraphicsAsicID_entry() {
   // Games compare for < 0x10 and do VdInitializeEDRAM, else other
   // (retrain/etc).

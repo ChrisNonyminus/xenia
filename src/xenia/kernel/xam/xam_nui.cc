@@ -71,6 +71,13 @@ dword_result_t XamShowNuiTroubleshooterUI_entry(unknown_t unk1, unknown_t unk2,
 }
 DECLARE_XAM_EXPORT1(XamShowNuiTroubleshooterUI, kNone, kStub);
 
+dword_result_t XamNuiIsDeviceReady_entry(unknown_t r3, unknown_t r4,
+                                         unknown_t r5, unknown_t r6,
+                      unknown_t r7, unknown_t r8, unknown_t r9) {
+  return 0;
+}
+DECLARE_XAM_EXPORT1(XamNuiIsDeviceReady, kNone, kStub);
+
 }  // namespace xam
 }  // namespace kernel
 }  // namespace xe
