@@ -169,6 +169,8 @@ struct XNetStartupParams {
 
 XNetStartupParams xnet_startup_params = {0};
 
+XSOCKADDR_IN socket_addr{};
+
 dword_result_t NetDll_XNetStartup_entry(dword_t caller,
                                         pointer_t<XNetStartupParams> params) {
   if (params) {
@@ -231,6 +233,24 @@ dword_result_t NetDll_XNetRandom_entry(dword_t caller, lpvoid_t buffer_ptr,
   return 0;
 }
 DECLARE_XAM_EXPORT1(NetDll_XNetRandom, kNetworking, kStub);
+
+// https://github.com/pmrowla/hl2sdk-csgo/blob/master/common/xbox/xboxstubs.h#L173
+
+dword_result_t NetDll_XNetCreateKey_entry(dword_t caller, lpvoid_t xnkid,
+                                          lpvoid_t xnkey) {
+  memset(xnkid, 0, 8);
+  memset(xnkey, 0, 16);
+
+  return 0;
+}
+DECLARE_XAM_EXPORT1(NetDll_XNetCreateKey, kNetworking, kStub);
+
+dword_result_t NetDll_XNetRegisterKey_entry(dword_t caller, lpvoid_t xnkid,
+                                          lpvoid_t xnkey) {
+
+  return 0;
+}
+DECLARE_XAM_EXPORT1(NetDll_XNetRegisterKey, kNetworking, kStub);
 
 dword_result_t NetDll_WSAStartup_entry(dword_t caller, word_t version,
                                        pointer_t<X_WSADATA> data_ptr) {
@@ -296,20 +316,56 @@ DECLARE_XAM_EXPORT1(NetDll_WSAGetLastError, kNetworking, kImplemented);
 dword_result_t NetDll_WSARecvFrom_entry(
     dword_t caller, dword_t socket, pointer_t<XWSABUF> buffers_ptr,
     dword_t buffer_count, lpdword_t num_bytes_recv, lpdword_t flags_ptr,
-    pointer_t<XSOCKADDR_IN> from_addr, pointer_t<XWSAOVERLAPPED> overlapped_ptr,
+    pointer_t<XSOCKADDR_IN> from_addr, lpdword_t from_len, pointer_t<XWSAOVERLAPPED> overlapped_ptr,
     lpvoid_t completion_routine_ptr) {
-  if (overlapped_ptr) {
-    // auto evt = kernel_state()->object_table()->LookupObject<XEvent>(
-    //    overlapped_ptr->event_handle);
+  //if (overlapped_ptr) {
+  //  // auto evt = kernel_state()->object_table()->LookupObject<XEvent>(
+  //  //    overlapped_ptr->event_handle);
 
-    // if (evt) {
-    //  //evt->Set(0, false);
-    //}
+  //  // if (evt) {
+  //  //  //evt->Set(0, false);
+  //  //}
+  //}
+  //
+
+  //// we're not going to be receiving packets any time soon
+  //// return error so we don't wait on that - Cancerous
+  //return -1;
+  assert(!overlapped_ptr);
+  assert(!completion_routine_ptr);
+
+  auto socket_real =
+      kernel_state()->object_table()->LookupObject<XSocket>(socket);
+  if (!socket_real) {
+    // WSAENOTSOCK
+    XThread::SetLastError(0x2736);
+    return -1;
   }
 
-  // we're not going to be receiving packets any time soon
-  // return error so we don't wait on that - Cancerous
-  return -1;
+  // Our sockets implementation doesn't support multiple buffers, so we need
+  // to combine the buffers the game has given us!
+  std::vector<uint8_t> combined_buffer_mem;
+  uint32_t combined_buffer_size = 0;
+  uint32_t combined_buffer_offset = 0;
+  for (uint32_t i = 0; i < buffer_count; i++) {
+    combined_buffer_size += buffers_ptr[i].len;
+    combined_buffer_mem.resize(combined_buffer_size);
+    uint8_t* combined_buffer = combined_buffer_mem.data();
+
+    std::memcpy(combined_buffer + combined_buffer_offset,
+                kernel_memory()->TranslateVirtual(buffers_ptr[i].buf_ptr),
+                buffers_ptr[i].len);
+    combined_buffer_offset += buffers_ptr[i].len;
+  }
+
+  N_XSOCKADDR_IN native_from(from_addr);
+  socket_real->RecvFrom(combined_buffer_mem.data(), combined_buffer_size, *flags_ptr,
+                 &native_from, (uint32_t*)from_len.host_address());
+
+  // TODO: Instantly complete overlapped
+
+  return 0;
+
 }
 DECLARE_XAM_EXPORT2(NetDll_WSARecvFrom, kNetworking, kStub, kHighFrequency);
 
@@ -452,7 +508,7 @@ struct XnAddrStatus {
 dword_result_t NetDll_XNetGetTitleXnAddr_entry(dword_t caller,
                                                pointer_t<XNADDR> addr_ptr) {
   // Just return a loopback address atm.
-  addr_ptr->ina.s_addr = htonl(INADDR_LOOPBACK);
+  addr_ptr->ina.s_addr = socket_addr.sin_addr;
   addr_ptr->inaOnline.s_addr = 0;
   addr_ptr->wPortOnline = 0;
 
@@ -492,10 +548,15 @@ dword_result_t NetDll_XNetXnAddrToMachineId_entry(dword_t caller,
 }
 DECLARE_XAM_EXPORT1(NetDll_XNetXnAddrToMachineId, kNetworking, kStub);
 
-void NetDll_XNetInAddrToString_entry(dword_t caller, dword_t in_addr,
+void NetDll_XNetInAddrToString_entry(dword_t caller, dword_t ina,
                                      lpstring_t string_out,
                                      dword_t string_size) {
-  strncpy(string_out, "666.666.666.666", string_size);
+  IN_ADDR addr;
+  addr.s_addr = ina.value();
+  auto addr_string =
+      fmt::format("{}.{}.{}.{}", addr.S_un.S_un_b.s_b1, addr.S_un.S_un_b.s_b2,
+                  addr.S_un.S_un_b.s_b3, addr.S_un.S_un_b.s_b4);
+  strncpy(string_out, addr_string.c_str(), string_size);
 }
 DECLARE_XAM_EXPORT1(NetDll_XNetInAddrToString, kNetworking, kStub);
 
@@ -503,25 +564,35 @@ DECLARE_XAM_EXPORT1(NetDll_XNetInAddrToString, kNetworking, kStub);
 // subsequent socket calls (like a handle to a XNet address)
 dword_result_t NetDll_XNetXnAddrToInAddr_entry(dword_t caller,
                                                pointer_t<XNADDR> xn_addr,
-                                               lpvoid_t xid, lpvoid_t in_addr) {
-  return 1;
+                                               lpvoid_t xid, lpvoid_t ina) {
+  memcpy(ina, &xn_addr->ina, 4);
+  return X_STATUS_SUCCESS;
 }
 DECLARE_XAM_EXPORT1(NetDll_XNetXnAddrToInAddr, kNetworking, kStub);
 
 // Does the reverse of the above.
 // FIXME: Arguments may not be correct.
-dword_result_t NetDll_XNetInAddrToXnAddr_entry(dword_t caller, lpvoid_t in_addr,
+dword_result_t NetDll_XNetInAddrToXnAddr_entry(dword_t caller, lpdword_t ina,
                                                pointer_t<XNADDR> xn_addr,
                                                lpvoid_t xid) {
-  return 1;
+  XNADDR xnaddr;
+  xnaddr.ina.s_addr = *ina;
+  xnaddr.inaOnline.s_addr = 0;
+  xnaddr.wPortOnline = 0;
+  std::memset(xnaddr.abEnet, 0xCC, 6);
+  std::memset(xnaddr.abOnline, 0, 20);
+
+  memcpy(xn_addr, &xnaddr, sizeof(XNADDR));
+
+  return X_STATUS_SUCCESS;
 }
 DECLARE_XAM_EXPORT1(NetDll_XNetInAddrToXnAddr, kNetworking, kStub);
 
 // https://www.google.com/patents/WO2008112448A1?cl=en
 // Reserves a port for use by system link
 dword_result_t NetDll_XNetSetSystemLinkPort_entry(dword_t caller,
-                                                  dword_t port) {
-  return 1;
+                                                  word_t port) {
+  return 0;
 }
 DECLARE_XAM_EXPORT1(NetDll_XNetSetSystemLinkPort, kNetworking, kStub);
 
@@ -535,7 +606,7 @@ struct XEthernetStatus {
 };
 
 dword_result_t NetDll_XNetGetEthernetLinkStatus_entry(dword_t caller) {
-  return 0;
+  return XEthernetStatus::XNET_ETHERNET_LINK_ACTIVE;
 }
 DECLARE_XAM_EXPORT1(NetDll_XNetGetEthernetLinkStatus, kNetworking, kStub);
 
@@ -602,9 +673,14 @@ DECLARE_XAM_EXPORT1(NetDll_XNetQosRelease, kNetworking, kStub);
 dword_result_t NetDll_XNetQosListen_entry(dword_t caller, lpvoid_t id,
                                           lpvoid_t data, dword_t data_size,
                                           dword_t r7, dword_t flags) {
-  return X_ERROR_FUNCTION_FAILED;
+  return X_ERROR_SUCCESS;
 }
 DECLARE_XAM_EXPORT1(NetDll_XNetQosListen, kNetworking, kStub);
+
+dword_result_t NetDll_WSAGetOverlappedResult_entry(dword_t caller, dword_t socket_handle, lpvoid_t overlapped_ptr, lpdword_t transfer, dword_t wait, lpdword_t flags) {
+  return X_ERROR_SUCCESS;
+}
+DECLARE_XAM_EXPORT1(NetDll_WSAGetOverlappedResult, kNetworking, kStub);
 
 dword_result_t NetDll_inet_addr_entry(lpstring_t addr_ptr) {
   if (!addr_ptr) {
