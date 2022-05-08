@@ -523,11 +523,13 @@ dword_result_t NetDll_XNetGetTitleXnAddr_entry(dword_t caller,
   // https://github.com/facebookarchive/RakNet/blob/master/Source/RakPeer.cpp#L4467
   // "Mac address is a poor solution because you can't have multiple connections
   // from the same system"
-  std::memset(addr_ptr->abEnet, 0xCC, 6);
+  for (int i = 0; i < 6; i++) {
+    addr_ptr->abEnet[i] = rand() % 256;
+  }
 
   std::memset(addr_ptr->abOnline, 0, 20);
 
-  return XnAddrStatus::XNET_GET_XNADDR_STATIC;
+  return XnAddrStatus::XNET_GET_XNADDR_ETHERNET;
 }
 DECLARE_XAM_EXPORT1(NetDll_XNetGetTitleXnAddr, kNetworking, kStub);
 
@@ -559,6 +561,22 @@ void NetDll_XNetInAddrToString_entry(dword_t caller, dword_t ina,
   strncpy(string_out, addr_string.c_str(), string_size);
 }
 DECLARE_XAM_EXPORT1(NetDll_XNetInAddrToString, kNetworking, kStub);
+
+dword_result_t NetDll_getsockname_entry(dword_t caller, dword_t socket_handle,
+                                        pointer_t<XSOCKADDR> name,
+                                        dword_t namelen) {
+  auto socket =
+      kernel_state()->object_table()->LookupObject<XSocket>(socket_handle);
+  if (!socket) {
+    // WSAENOTSOCK
+    XThread::SetLastError(0x2736);
+    return -1;
+  }
+  name->address_family = socket->address_family();
+  memcpy(name->sa_data, socket->sa_data(), 14);
+  return 0;
+}
+DECLARE_XAM_EXPORT1(NetDll_getsockname, kNetworking, kStub);
 
 // This converts a XNet address to an IN_ADDR. The IN_ADDR is used for
 // subsequent socket calls (like a handle to a XNet address)
@@ -812,7 +830,12 @@ dword_result_t NetDll_bind_entry(dword_t caller, dword_t socket_handle,
     XThread::SetLastError(xboxkrnl::xeRtlNtStatusToDosError(status));
     return -1;
   }
-
+  name->sin_family = native_name.sin_family;
+  name->sin_port = native_name.sin_port;
+  name->sin_addr = native_name.sin_addr;
+  std::memcpy(name->x_sin_zero, native_name.x_sin_zero,
+              xe::countof(native_name.x_sin_zero));
+  socket_addr.sin_addr = native_name.sin_addr;
   return 0;
 }
 DECLARE_XAM_EXPORT1(NetDll_bind, kNetworking, kImplemented);
@@ -834,7 +857,8 @@ dword_result_t NetDll_connect_entry(dword_t caller, dword_t socket_handle,
     XThread::SetLastError(xboxkrnl::xeRtlNtStatusToDosError(status));
     return -1;
   }
-
+  name->address_family = native_name.address_family;
+  std::memcpy(name->sa_data, native_name.sa_data, xe::countof(native_name.sa_data));
   return 0;
 }
 DECLARE_XAM_EXPORT1(NetDll_connect, kNetworking, kImplemented);

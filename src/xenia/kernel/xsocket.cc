@@ -127,6 +127,7 @@ X_STATUS XSocket::Bind(N_XSOCKADDR_IN* name, int name_len) {
 
   bound_ = true;
   bound_port_ = name->sin_port;
+  memcpy(&sa_data_[0], ((sockaddr*)name)->sa_data, 14);
 
   return X_STATUS_SUCCESS;
 }

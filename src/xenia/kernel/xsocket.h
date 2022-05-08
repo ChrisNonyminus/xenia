@@ -95,6 +95,8 @@ class XSocket : public XObject {
 
   uint64_t native_handle() const { return native_handle_; }
   uint16_t bound_port() const { return bound_port_; }
+  AddressFamily address_family() const { return af_; }
+  char* sa_data() { return &sa_data_[0]; }
 
   X_STATUS Initialize(AddressFamily af, Type type, Protocol proto);
   X_STATUS Close();
@@ -143,6 +145,8 @@ class XSocket : public XObject {
   uint16_t bound_port_ = 0;
 
   bool broadcast_socket_ = false;
+
+  char sa_data_[14];
 
   std::unique_ptr<xe::threading::Event> event_;
   std::mutex incoming_packet_mutex_;
