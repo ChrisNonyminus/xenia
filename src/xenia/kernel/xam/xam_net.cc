@@ -508,7 +508,7 @@ struct XnAddrStatus {
 dword_result_t NetDll_XNetGetTitleXnAddr_entry(dword_t caller,
                                                pointer_t<XNADDR> addr_ptr) {
   // Just return a loopback address atm.
-  addr_ptr->ina.s_addr = socket_addr.sin_addr;
+  addr_ptr->ina.s_addr = htonl(INADDR_LOOPBACK);
   addr_ptr->inaOnline.s_addr = 0;
   addr_ptr->wPortOnline = 0;
 
@@ -593,7 +593,7 @@ DECLARE_XAM_EXPORT1(NetDll_XNetXnAddrToInAddr, kNetworking, kStub);
 dword_result_t NetDll_XNetInAddrToXnAddr_entry(dword_t caller, lpdword_t ina,
                                                pointer_t<XNADDR> xn_addr,
                                                lpvoid_t xid) {
-  XNADDR xnaddr;
+  XNADDR xnaddr{};
   xnaddr.ina.s_addr = *ina;
   xnaddr.inaOnline.s_addr = 0;
   xnaddr.wPortOnline = 0;
@@ -690,13 +690,32 @@ DECLARE_XAM_EXPORT1(NetDll_XNetQosRelease, kNetworking, kStub);
 
 dword_result_t NetDll_XNetQosListen_entry(dword_t caller, lpvoid_t id,
                                           lpvoid_t data, dword_t data_size,
-                                          dword_t r7, dword_t flags) {
+                                          dword_t bits_per_second, dword_t flags) {
+
   return X_ERROR_SUCCESS;
 }
 DECLARE_XAM_EXPORT1(NetDll_XNetQosListen, kNetworking, kStub);
 
-dword_result_t NetDll_WSAGetOverlappedResult_entry(dword_t caller, dword_t socket_handle, lpvoid_t overlapped_ptr, lpdword_t transfer, dword_t wait, lpdword_t flags) {
-  return X_ERROR_SUCCESS;
+dword_result_t NetDll_WSAGetOverlappedResult_entry(dword_t caller, dword_t socket_handle,
+                                                   pointer_t<XAM_OVERLAPPED> overlapped_ptr,
+                                                   lpdword_t transfer, dword_t wait, lpdword_t flags) {
+  uint32_t result = -1;
+  if (overlapped_ptr->result != X_ERROR_IO_PENDING) {
+    result = overlapped_ptr->result;
+  } else if (!overlapped_ptr->event) {
+    result = X_ERROR_IO_INCOMPLETE;
+  } else {
+    auto ev = kernel_state()->object_table()->LookupObject<XEvent>(
+        overlapped_ptr->event);
+    result = ev->Wait(3, 1, 0, nullptr);
+    if (XSUCCEEDED(result)) {
+      result = overlapped_ptr->result;
+    } else {
+      result = xboxkrnl::xeRtlNtStatusToDosError(result);
+    }
+  }
+
+  return result;
 }
 DECLARE_XAM_EXPORT1(NetDll_WSAGetOverlappedResult, kNetworking, kStub);
 
