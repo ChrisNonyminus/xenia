@@ -277,6 +277,10 @@ void CommandProcessor::Resume() {
 
 bool CommandProcessor::Save(ByteStream* stream) {
   assert_true(paused_);
+  uint32_t title_id = kernel_state_->GetExecutableModule()->title_id();
+  auto file_name = fmt::format("{:08X}_{}.xtr", title_id, counter_ - 1);
+  auto path = trace_frame_path_ / file_name;
+  trace_writer_.Open(path, title_id);
   InitializeTrace();
 
   stream->Write<uint32_t>(primary_buffer_ptr_);

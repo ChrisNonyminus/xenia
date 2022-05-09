@@ -906,8 +906,7 @@ bool XThread::Save(ByteStream* stream) {
   }
 
   stream->Write(kThreadSaveSignature);
-  stream->Write(thread_name_.length());
-  stream->Write(&thread_name_[0], thread_name_.length());
+  stream->Write(thread_name_);
 
   ThreadSavedState state;
   state.thread_id = thread_id_;
@@ -969,10 +968,7 @@ object_ref<XThread> XThread::Restore(KernelState* kernel_state,
 
   XELOGD("XThread {:08X}", thread->handle());
 
-  size_t namelen = stream->Read<size_t>();
-
-  thread->thread_name_.resize(namelen);
-  stream->Read(&thread->thread_name_[0], namelen);
+  thread->thread_name_ = stream->Read<std::string>();
 
   ThreadSavedState state;
   stream->Read(&state, sizeof(ThreadSavedState));
@@ -1020,18 +1016,6 @@ object_ref<XThread> XThread::Restore(KernelState* kernel_state,
     context->xer_so = state.context.xer_so;
     context->vscr_sat = state.context.vscr_sat;
 
-    //X_KPCR* pcr =
-    //    thread->memory()->TranslateVirtual<X_KPCR*>(thread->pcr_address_);
-
-    //pcr->tls_ptr = thread->tls_static_address_;
-    //pcr->pcr_ptr = thread->pcr_address_;
-    //pcr->current_thread = thread->guest_object();
-
-    //pcr->stack_base_ptr = thread->stack_base_;
-    //pcr->stack_end_ptr = thread->stack_limit_;
-
-    //pcr->dpc_active = 0;  // DPC active bool?
-
     // Always retain when starting - the thread owns itself until exited.
     thread->RetainHandle();
 
@@ -1043,7 +1027,7 @@ object_ref<XThread> XThread::Restore(KernelState* kernel_state,
       xe::threading::set_current_thread_id(thread->handle());
 
       // Set name immediately, if we have one.
-      thread->thread_->set_name(thread->thread_name_);
+      thread->thread_->set_name(thread->name());
 
       // Profiler needs to know about the thread.
       xe::Profiler::ThreadEnter(thread->name().c_str());
@@ -1058,10 +1042,6 @@ object_ref<XThread> XThread::Restore(KernelState* kernel_state,
         assert_true(status == X_STATUS_SUCCESS);
       }
       thread->pending_mutant_acquires_.clear();
-
-      if (cpu::ThreadState::Get() == nullptr) {
-        cpu::ThreadState::Bind(thread->thread_state_);
-      }
 
       // Execute user code.
       thread->running_ = true;
