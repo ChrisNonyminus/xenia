@@ -391,7 +391,7 @@ void Emulator::Pause() {
       continue;
     }
 
-    if (true) {
+    if (thread->is_running()) {
       thread->thread()->Suspend(nullptr);
     }
   }

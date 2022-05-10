@@ -855,6 +855,10 @@ struct ThreadSavedState {
   bool is_main_thread;  // Is this the main thread?
   bool is_running;
 
+  bool is_executing_extern;
+  std::string current_extern_module;
+  uint16_t current_extern_ordinal;
+
   uint32_t apc_head;
   uint32_t tls_static_address;
   uint32_t tls_dynamic_address;
@@ -892,7 +896,7 @@ bool XThread::Save(ByteStream* stream) {
 
   uint32_t pc = 0;
   if (running_) {
-    pc = emulator()->processor()->GetLastProgramCounter(thread_id_);
+    pc = emulator()->processor()->StepToGuestSafePoint(thread_id_);
     if (!pc) {
       XELOGE("XThread {:08X} failed to save: could not step to a safe point!",
              handle());
@@ -944,6 +948,9 @@ bool XThread::Save(ByteStream* stream) {
     state.context.xer_so = context->xer_so;
     state.context.vscr_sat = context->vscr_sat;
     state.context.pc = pc;
+    state.is_executing_extern = thread_state_->is_executing_extern();
+    state.current_extern_module = thread_state_->current_extern_module();
+    state.current_extern_ordinal = thread_state_->current_extern_ordinal();
   }
 
   stream->Write(&state, sizeof(ThreadSavedState));
@@ -1022,7 +1029,7 @@ object_ref<XThread> XThread::Restore(KernelState* kernel_state,
     xe::threading::Thread::CreationParameters params;
     params.create_suspended = true;  // Not done restoring yet.
     params.stack_size = 16_MiB;
-    thread->thread_ = xe::threading::Thread::Create(params, [thread, state]() {
+    thread->thread_ = xe::threading::Thread::Create(params, [thread, state, context]() {
       // Set thread ID override. This is used by logging.
       xe::threading::set_current_thread_id(thread->handle());
 
@@ -1045,6 +1052,19 @@ object_ref<XThread> XThread::Restore(KernelState* kernel_state,
 
       // Execute user code.
       thread->running_ = true;
+
+      if (state.is_executing_extern) {
+        auto export_data =
+            thread->kernel_state()
+                          ->processor()
+                          ->export_resolver()
+                          ->GetExportByOrdinal(state.current_extern_module,
+                                               state.current_extern_ordinal);
+        XELOGD(
+            "Attempting to re-execute extern on state restore. Executing {}.",
+            export_data->name);
+        export_data->function_data.trampoline(context);
+      }
 
       uint32_t pc = state.context.pc;
       thread->kernel_state_->processor()->ExecuteRaw(thread->thread_state_, pc);

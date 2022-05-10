@@ -1221,7 +1221,7 @@ uint32_t Processor::StepToGuestSafePoint(uint32_t thread_id, bool ignore_host) {
 uint32_t Processor::GetLastProgramCounter(uint32_t thread_id) {
   if (thread_id == ThreadState::GetThreadID()) {
     assert_always(
-        "Processor::StepToSafePoint(): target thread is the calling thread!");
+        "Processor::GetLastProgramCounter(): target thread is the calling thread!");
     return 0;
   }
   auto thread_info = QueryThreadDebugInfo(thread_id);

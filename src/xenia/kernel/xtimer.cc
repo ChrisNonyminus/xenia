@@ -36,6 +36,7 @@ void XTimer::Initialize(uint32_t timer_type) {
       break;
   }
   assert_not_null(timer_);
+  timer_type_ = timer_type;
 }
 
 X_STATUS XTimer::SetTimer(int64_t due_time, uint32_t period_ms,
@@ -94,6 +95,22 @@ X_STATUS XTimer::SetTimer(int64_t due_time, uint32_t period_ms,
 
 X_STATUS XTimer::Cancel() {
   return timer_->Cancel() ? X_STATUS_SUCCESS : X_STATUS_UNSUCCESSFUL;
+}
+
+bool XTimer::Save(ByteStream* stream) {
+  if (!SaveObject(stream)) {
+    return false;
+  }
+  stream->Write(timer_type_);
+  return true;
+}
+
+object_ref<XTimer> XTimer::Restore(KernelState* kernel_state,
+                                   ByteStream* stream) {
+  auto timer = object_ref<XTimer>(new XTimer(kernel_state));
+  timer->RestoreObject(stream);
+  timer->Initialize(stream->Read<uint32_t>());
+  return timer;
 }
 
 }  // namespace kernel

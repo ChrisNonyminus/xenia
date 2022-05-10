@@ -33,6 +33,21 @@ class ThreadState {
   ppc::PPCContext* context() const { return context_; }
   uint32_t thread_id() const { return thread_id_; }
 
+  // for savestates
+  bool is_executing_extern() const { return is_executing_extern_; }
+  uint16_t current_extern_ordinal() const { return current_extern_ordinal_; }
+  std::string current_extern_module() const { return current_extern_module_; }
+
+  void SetIsExecutingExtern(bool value) {
+    is_executing_extern_ = value;
+  }
+  void SetCurrentExternOrdinal(uint16_t value) {
+    current_extern_ordinal_ = value;
+  }
+  void SetCurrentExternModule(std::string value) {
+    current_extern_module_ = value;
+  }
+
   static void Bind(ThreadState* thread_state);
   static ThreadState* Get();
   static uint32_t GetThreadID();
@@ -44,6 +59,11 @@ class ThreadState {
 
   uint32_t pcr_address_ = 0;
   uint32_t thread_id_ = 0;
+
+  // for savestates
+  bool is_executing_extern_ = false;
+  std::string current_extern_module_;
+  uint16_t current_extern_ordinal_ = 0;
 
   // NOTE: must be 64b aligned for SSE ops.
   ppc::PPCContext* context_;

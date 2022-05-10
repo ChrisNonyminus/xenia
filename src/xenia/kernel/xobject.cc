@@ -25,6 +25,7 @@
 #include "xenia/kernel/xsemaphore.h"
 #include "xenia/kernel/xsymboliclink.h"
 #include "xenia/kernel/xthread.h"
+#include "xenia/kernel/xtimer.h"
 
 namespace xe {
 namespace kernel {
@@ -157,7 +158,7 @@ object_ref<XObject> XObject::Restore(KernelState* kernel_state, Type type,
     case Type::Thread:
       return XThread::Restore(kernel_state, stream);
     case Type::Timer:
-      break;
+      return XTimer::Restore(kernel_state, stream);
     case Type::Undefined:
       break;
   }

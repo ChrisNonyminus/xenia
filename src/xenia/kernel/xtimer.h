@@ -10,6 +10,7 @@
 #ifndef XENIA_KERNEL_XTIMER_H_
 #define XENIA_KERNEL_XTIMER_H_
 
+#include "xenia/base/byte_stream.h"
 #include "xenia/base/threading.h"
 #include "xenia/kernel/xobject.h"
 #include "xenia/xbox.h"
@@ -32,6 +33,10 @@ class XTimer : public XObject {
                     uint32_t routine_arg, bool resume);
   X_STATUS Cancel();
 
+  bool Save(ByteStream* stream) override;
+  static object_ref<XTimer> Restore(KernelState* kernel_state,
+                                     ByteStream* stream);
+
  protected:
   xe::threading::WaitHandle* GetWaitHandle() override { return timer_.get(); }
 
@@ -41,6 +46,8 @@ class XTimer : public XObject {
   XThread* callback_thread_ = nullptr;
   uint32_t callback_routine_ = 0;
   uint32_t callback_routine_arg_ = 0;
+
+  uint32_t timer_type_;
 };
 
 }  // namespace kernel

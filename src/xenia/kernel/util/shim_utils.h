@@ -20,6 +20,7 @@
 #include "xenia/base/memory.h"
 #include "xenia/base/string_buffer.h"
 #include "xenia/cpu/export_resolver.h"
+#include "xenia/cpu/thread_state.h"
 #include "xenia/cpu/ppc/ppc_context.h"
 #include "xenia/kernel/kernel_flags.h"
 #include "xenia/kernel/kernel_state.h"
@@ -525,6 +526,23 @@ xe::cpu::Export* RegisterExport(R (*fn)(Ps&...), const char* name,
       ORDINAL, xe::cpu::Export::Type::kFunction, name,
       tags | xe::cpu::ExportTag::kImplemented | xe::cpu::ExportTag::kLog);
   static R (*FN)(Ps & ...) = fn;
+
+  // for savestates
+  static std::string module_name = "";
+
+  switch (MODULE) {
+    case KernelModuleId::xboxkrnl:
+      module_name = "xboxkrnl.exe";
+      break;
+    case KernelModuleId::xam:
+      module_name = "xam.xex";
+      break;
+    case KernelModuleId::xbdm:
+      module_name = "xbdm.xex";
+      break;
+    default:
+      break;
+  }
   struct X {
     static void Trampoline(PPCContext* ppc_context) {
       ++export_entry->function_data.call_count;
@@ -532,6 +550,10 @@ xe::cpu::Export* RegisterExport(R (*fn)(Ps&...), const char* name,
           ppc_context,
           0,
       };
+      // for savestates: register extern until done
+      ppc_context->thread_state->SetIsExecutingExtern(true);
+      ppc_context->thread_state->SetCurrentExternModule(module_name);
+      ppc_context->thread_state->SetCurrentExternOrdinal(ORDINAL);
       // Using braces initializer instead of make_tuple because braces
       // enforce execution order across compilers.
       // The make_tuple order is undefined per the C++ standard and
@@ -555,6 +577,10 @@ xe::cpu::Export* RegisterExport(R (*fn)(Ps&...), const char* name,
           // TODO(benvanik): log result.
         }
       }
+      // for savestates: unregister extern; already done
+      ppc_context->thread_state->SetIsExecutingExtern(false);
+      ppc_context->thread_state->SetCurrentExternModule("");
+      ppc_context->thread_state->SetCurrentExternOrdinal(0);
     }
   };
   export_entry->function_data.trampoline = &X::Trampoline;
