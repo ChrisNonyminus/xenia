@@ -896,7 +896,7 @@ bool XThread::Save(ByteStream* stream) {
 
   uint32_t pc = 0;
   if (running_) {
-    pc = emulator()->processor()->StepToGuestSafePoint(thread_id_);
+    pc = emulator()->processor()->GetLastProgramCounter(thread_id_);
     if (!pc) {
       XELOGE("XThread {:08X} failed to save: could not step to a safe point!",
              handle());
@@ -1053,7 +1053,7 @@ object_ref<XThread> XThread::Restore(KernelState* kernel_state,
       // Execute user code.
       thread->running_ = true;
 
-      if (state.is_executing_extern) {
+      /*if (state.is_executing_extern) {
         auto export_data =
             thread->kernel_state()
                           ->processor()
@@ -1064,7 +1064,7 @@ object_ref<XThread> XThread::Restore(KernelState* kernel_state,
             "Attempting to re-execute extern on state restore. Executing {}.",
             export_data->name);
         export_data->function_data.trampoline(context);
-      }
+      }*/
 
       uint32_t pc = state.context.pc;
       thread->kernel_state_->processor()->ExecuteRaw(thread->thread_state_, pc);

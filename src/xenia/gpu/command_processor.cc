@@ -289,6 +289,8 @@ bool CommandProcessor::Save(ByteStream* stream) {
   stream->Write<uint32_t>(read_ptr_update_freq_);
   stream->Write<uint32_t>(read_ptr_writeback_ptr_);
   stream->Write<uint32_t>(write_ptr_index_.load());
+  stream->Write(register_file_->values,
+                sizeof(uint32_t) * RegisterFile::kRegisterCount);
 
   return true;
 }
@@ -302,6 +304,8 @@ bool CommandProcessor::Restore(ByteStream* stream) {
   read_ptr_update_freq_ = stream->Read<uint32_t>();
   read_ptr_writeback_ptr_ = stream->Read<uint32_t>();
   write_ptr_index_.store(stream->Read<uint32_t>());
+  stream->Read(register_file_->values,
+               sizeof(uint32_t) * RegisterFile::kRegisterCount);
 
   return true;
 }
