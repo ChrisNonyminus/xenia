@@ -10,6 +10,7 @@
 #include "xenia/apu/xma_decoder.h"
 
 #include "xenia/apu/xma_context.h"
+#include "xenia/base/byte_stream.h"
 #include "xenia/base/cvar.h"
 #include "xenia/base/logging.h"
 #include "xenia/base/math.h"
@@ -378,6 +379,26 @@ void XmaDecoder::Resume() {
   paused_ = false;
 
   resume_fence_.Signal();
+}
+
+bool XmaDecoder::Save(ByteStream* stream) {
+  stream->Write(register_file_.values,
+                sizeof(uint32_t) * XmaRegisterFile::kRegisterCount);
+  stream->Write(context_bitmap_.data());
+  for (auto& context : contexts_) {
+    context.Save(stream);
+  }
+  return true;
+}
+
+bool XmaDecoder::Restore(ByteStream* stream) {
+  stream->Read(register_file_.values,
+               sizeof(uint32_t) * XmaRegisterFile::kRegisterCount);
+  stream->Read(context_bitmap_.data());
+  for (auto& context : contexts_) {
+    context.Restore(stream);
+  }
+  return true;
 }
 
 }  // namespace apu

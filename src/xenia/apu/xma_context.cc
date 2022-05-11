@@ -15,6 +15,7 @@
 #include "xenia/apu/xma_decoder.h"
 #include "xenia/apu/xma_helpers.h"
 #include "xenia/base/bit_stream.h"
+#include "xenia/base/byte_stream.h"
 #include "xenia/base/logging.h"
 #include "xenia/base/platform.h"
 #include "xenia/base/profiling.h"
@@ -164,6 +165,26 @@ void XmaContext::Release() {
   set_is_allocated(false);
   auto context_ptr = memory()->TranslateVirtual(guest_ptr());
   std::memset(context_ptr, 0, sizeof(XMA_CONTEXT_DATA));  // Zero it.
+}
+
+bool XmaContext::Save(ByteStream* stream) {
+  stream->Write(guest_ptr_);
+  stream->Write(id_);
+  stream->Write(is_allocated_);
+  stream->Write(is_enabled_);
+  stream->Write(xma_frame_.data(), xma_frame_.size());
+  stream->Write(raw_frame_.data(), raw_frame_.size());
+  return true;
+}
+
+bool XmaContext::Restore(ByteStream* stream) {
+  guest_ptr_ = stream->Read<uint32_t>();
+  id_ = stream->Read<uint32_t>();
+  is_allocated_ = stream->Read<bool>();
+  is_enabled_ = stream->Read<bool>();
+  stream->Read(xma_frame_.data(), xma_frame_.size());
+  stream->Read(raw_frame_.data(), raw_frame_.size());
+  return true;
 }
 
 void XmaContext::SwapInputBuffer(XMA_CONTEXT_DATA* data) {

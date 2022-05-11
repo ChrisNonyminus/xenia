@@ -51,6 +51,9 @@ class XmaDecoder {
   void Pause();
   void Resume();
 
+  bool Save(ByteStream* stream);
+  bool Restore(ByteStream* stream);
+
  protected:
   int GetContextId(uint32_t guest_ptr);
 

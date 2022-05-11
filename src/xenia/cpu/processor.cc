@@ -1085,6 +1085,11 @@ uint32_t Processor::StepToGuestSafePoint(uint32_t thread_id, bool ignore_host) {
   }
   auto thread_info = QueryThreadDebugInfo(thread_id);
   auto thread = thread_info->thread;
+  if (!thread) {
+    assert_always(
+        "Thread was null!");
+    return 0;
+  }
 
   // Now the fun part begins: Registers are only guaranteed to be synchronized
   // with the PPC context at a basic block boundary. Unfortunately, we most

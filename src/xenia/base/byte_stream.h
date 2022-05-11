@@ -12,6 +12,7 @@
 
 #include <cstdint>
 #include <string>
+#include <vector>
 
 namespace xe {
 
@@ -63,6 +64,18 @@ class ByteStream {
   void Write(const std::u16string_view str) {
     Write(uint32_t(str.length()));
     Write(str.data(), str.length() * sizeof(char16_t));
+  }
+
+  template <typename T>
+  void Write(const std::vector<T> vec) {
+    Write(uint64_t(vec.size()));
+    Write(vec.data(), vec.size() * sizeof(T));
+  }
+
+  template <typename T>
+  void Read(std::vector<T>& vec) {
+    vec.resize(Read<uint64_t>());
+    Read(vec.data(), vec.size() * sizeof(T));
   }
 
  private:

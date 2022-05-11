@@ -250,6 +250,7 @@ bool AudioSystem::Save(ByteStream* stream) {
     stream->Write(client.callback_arg);
     stream->Write(client.wrapped_callback_arg);
   }
+  xma_decoder_->Save(stream);
 
   return true;
 }
@@ -295,6 +296,7 @@ bool AudioSystem::Restore(ByteStream* stream) {
     assert_not_null(driver);
     client.driver = driver;
   }
+  xma_decoder_->Restore(stream);
 
   return true;
 }

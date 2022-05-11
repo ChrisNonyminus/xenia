@@ -159,6 +159,9 @@ class XmaContext {
   void Disable();
   void Release();
 
+  bool Save(ByteStream* stream);
+  bool Restore(ByteStream* stream);
+
   Memory* memory() const { return memory_; }
 
   uint32_t id() { return id_; }
